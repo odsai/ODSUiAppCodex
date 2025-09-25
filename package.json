@@ -1,5 +1,5 @@
 {
-  "name": "odsui-shell",
+  "name": "odsui-app-codex",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -30,4 +30,3 @@
     "vite": "^5.0.0"
   }
 }
-

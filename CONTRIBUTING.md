@@ -21,3 +21,19 @@ CI runs lint (non-blocking), typecheck, and build on Node 20.
 - TypeScript + React 18
 - TailwindCSS for styling
 - Keep components small and accessible (ARIA, focus, contrast)
+
+## Branch Protection (Recommended)
+Set these on the `main` branch in GitHub → Settings → Branches:
+- Require a pull request before merging (at least 1 approving review)
+- Require status checks to pass before merging:
+  - CI (lint/typecheck/build)
+  - Azure Static Web Apps CI/CD (deployment)
+- Dismiss stale approvals when new commits are pushed
+- Restrict force pushes and deletions
+
+## Deployment (Azure Static Web Apps)
+This repo includes `.github/workflows/azure-static-web-apps.yml`.
+- Create an Azure Static Web App and get the deployment token.
+- In GitHub → Settings → Secrets and variables → Actions, add:
+  - `AZURE_STATIC_WEB_APPS_API_TOKEN` = your SWA deployment token
+- Push to `main` to trigger build and deploy.
