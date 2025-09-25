@@ -4,9 +4,11 @@
 [![Azure SWA Deploy](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml)
 
 Repository: https://github.com/odsai/ODSUiAppCodex
+Live: https://studio.opendesignschool.ai
 
 ## Overview
 ODSUiAppCodex hosts the ODSUi Shell app, a unified interface for open-source AI tools in Design Pedagogy and Practice.
+Primary site: https://studio.opendesignschool.ai
 
 ## Tech Stack
 - React 18 + TypeScript + Vite
