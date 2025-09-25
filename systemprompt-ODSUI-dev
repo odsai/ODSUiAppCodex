@@ -1,0 +1,422 @@
+How To Use This Document — Strict Guide
+
+Current Version: v0.2.2
+
+Purpose
+- This is the live, authoritative truth document for ODSUi Shell development. It guides humans and AI. Treat it as policy, not a scratchpad.
+
+Rules
+- Approved-only in core sections: Only stable, agreed features/processes belong in the main spec. No experiments.
+- Proposals go to “Extensible Sections (Stubs) → Proposed”. Move to “Approved” only after explicit sign-off.
+- Obsolete entries are removed to keep the doc clean and unambiguous.
+- Every approved change must:
+  - Update the relevant section(s)
+  - Bump SemVer per Change Control
+  - Add a dated Changelog entry
+
+Contribution Workflow
+- Suggest changes by adding concise bullets under the relevant “Proposed” subsection.
+- Once reviewed and approved, promote to “Approved” and integrate into the main spec where applicable.
+- Keep routes, state, data models, and acceptance criteria in sync with code. If code needs to diverge, update this doc first.
+
+For Developers
+- Implement only what’s in Approved sections and Acceptance Criteria.
+- If you need a new feature or deviation, propose it first; do not merge unaudited changes.
+- When in conflict between code and this document, the document wins. Raise an issue to reconcile.
+
+For AI Assistants
+- Follow Approved sections strictly. Do not implement Proposed items without explicit promotion.
+- If the spec is ambiguous, ask to clarify and record the decision here before proceeding.
+
+Versioning & Change Control
+- Use SemVer (vMAJOR.MINOR.PATCH). PATCH for clarifications/docs-only; MINOR for new features/sections; MAJOR for breaking reshuffles.
+- All modifications must include a Changelog entry with date and version.
+
+Reading Order
+- Start here, then read the Cursor System Prompt, then “ODSUi shell app development — Truth Document (vNext)”, then Changelog, then Extensible Sections.
+
+Compliance
+- PRs that touch core flows should include doc updates. Keep entries short, specific, and actionable. Avoid vague language.
+
+Perfect 👍 — here’s a Cursor-ready system prompt you can paste directly into Cursor to continue development seamlessly.
+I’ve compressed all the context into a sharp, actionable brief that Codex/Cursor will understand without overload.
+
+⸻
+
+🛠 Cursor System Prompt — ODSUi Shell
+
+You are continuing work on ODSUi Shell, a lightweight unified interface app for open-source AI tools.
+Your task is to build it to enterprise quality: lean, clean, modular, extensible, developer-friendly, user-friendly, robust, secure, scalable, and future-proof.
+No patchwork or shortcuts.
+
+⸻
+
+🎯 Project Purpose
+	•	A shell that serves as a delivery point for tools:
+	•	OWUI (OpenWebUI)
+	•	Penpot
+	•	Flowise
+	•	Excalidraw
+	•	ComfyUI
+	•	Groups
+	•	Settings
+	•	Provides floating pill menu + dashboard overlay as the main UX.
+
+⸻
+
+🔑 Features
+	1.	Floating Pill Menu
+	•	Draggable, edge-snap, hover expand, click pin open/closed.
+	•	Tooltip labels on hover only, auto-flip left/right.
+	•	Brand color: #B13634.
+	•	Items: Dashboard, OWUI, Penpot, Flowise, Excalidraw, ComfyUI, Groups, Settings.
+	2.	Dashboard Overlay
+	•	Translucent background.
+	•	Logo placeholder (#B13634 circle).
+	•	Intro text: Welcome to ODSAiStudio… (with IITB/NIDI reference).
+	•	Enter button → hides dashboard, opens OWUI (or last opened app).
+	•	When signed in, button shows Signed in (disabled).
+	•	App cards shown below intro.
+	3.	Routing
+	•	Hash-based (#/ai, #/penpot, etc.) for static hosting.
+	•	Dashboard returns via pill menu.
+	•	Default app: OWUI.
+	4.	Dummy Pages
+	•	OWUI, Penpot, Flowise, Excalidraw, ComfyUI, Groups, Settings (placeholders for now).
+	5.	State
+	•	Use Zustand for global state.
+	•	Track: route, signedIn, showDashboard.
+
+⸻
+
+🛠 Tech Stack
+	•	React 18 + TypeScript + Vite
+	•	TailwindCSS for styling
+	•	Zustand for state
+	•	React Icons (for FAB/menu)
+	•	Azure Static Web Apps for hosting
+	•	GitHub Actions for CI/CD
+	•	ESLint + Prettier for code quality
+
+⸻
+
+📂 Scaffold (already agreed)
+
+odsui-shell/
+├── src/
+│   ├── components/ (PillMenu.tsx, etc.)
+│   ├── pages/ (Dashboard, OWUI, Penpot, Flowise, Excalidraw, ComfyUI, Groups, Settings)
+│   ├── store/ (appStore.ts)
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── index.css
+├── public/
+├── tailwind.config.js
+├── postcss.config.js
+├── tsconfig.json
+├── vite.config.ts
+├── package.json
+├── staticwebapp.config.json   # Azure SWA config
+├── .github/workflows/ci.yml   # GitHub Actions CI/CD
+└── README.md                  # With local + Azure deployment instructions
+
+
+⸻
+
+🚀 Rules
+	•	Always maintain robust, bug-free code.
+	•	No duplication (pill menu or dashboard).
+	•	Ensure tooltips + pill behavior work consistently.
+	•	Keep code modular, documented, and versioned.
+	•	All changes must respect enterprise-grade stability + security.
+
+⸻
+
+👉 Paste this into Cursor’s system prompt (or pin it in chat). Then tell it:
+
+“Repo is already here. Continue development of ODSUi Shell following the system prompt.”
+
+⸻
+
+ODSUi shell app development — Truth Document (vNext)
+
+You are continuing ODSUi Shell, a unified interface for open-source AI tools. Deliver enterprise-quality code: lean, modular, accessible, testable, secure, and maintainable. No shortcuts.
+
+Purpose
+- Dashboard-first UX with sign-in and a Project Manager (Projects row + Courses row).
+- Floating app switcher appears only after sign-in.
+- OWUI is the default app when a project is selected or created.
+- Admin-only Settings: visible and usable only when signed in with admin credentials.
+
+Core Flow
+- First load shows Dashboard.
+- If not signed in:
+  - Show logo, brief intro, and a small sign-in button: “Sign in with your ODSAi credentials”.
+  - Clicking opens a login card (email + password). Include “Create account on ODSAi” and “Forgot password?” links.
+  - On success: show Dashboard with Project Manager.
+- If signed in (non-admin):
+  - Show Dashboard with Projects row + Courses row. No Enter/Signed-in buttons.
+- If signed in (admin):
+  - Show Dashboard with Projects row + Courses row.
+  - Additionally show an Admin Settings card (only for admins). Clicking opens Settings with admin sections.
+
+Projects & Courses
+- Projects row:
+  - At least one sample project card and a “Create Project” card.
+  - Create Project opens a form (name, description). On submit: create card → set active → route to `#/ai`.
+- Courses row:
+  - Show user-enrolled courses. Clicking routes to `#/ai?channel=<courseId>` (stub handling).
+- Selecting a project or course always routes to OWUI; OWUI shows current project/course context in a header stub.
+
+Floating App Switcher
+- Visible only after sign-in (admin and non-admin).
+- Draggable, edge-snap, hover-expand when not pinned, click to toggle pin, tooltips auto-flip, keyboard focus states.
+- Items: Dashboard, OWUI (default), Penpot, Flowise, Excalidraw, ComfyUI, Groups, Settings.
+
+Routing
+- Hash-based: `#/dashboard`, `#/ai`, `#/penpot`, `#/flowise`, `#/excalidraw`, `#/comfyui`, `#/groups`, `#/settings`, `#/login`.
+- Default: `#/dashboard`. Unknown → redirect to `#/dashboard`.
+- On `#/dashboard`: if not signed in → login option; if signed in → Project Manager; if admin → also show Admin Settings card.
+- After selecting/creating a project → `#/ai`.
+
+State (Zustand)
+- auth:
+  - `signedIn: boolean`
+  - `user: { id: string; name: string; email: string; roles: string[] } | null`
+  - `token?: string` (do not persist by default)
+  - selector: `isAdmin = user?.roles?.includes('admin')`
+- ui:
+  - `route: Route`
+  - `activeProjectId?: string`
+  - `activeCourseId?: string`
+- data:
+  - `projects: Project[]`
+  - `courses: Course[]`
+  - `appSettings: AppSettings` (admin-managed; see below)
+- Actions:
+  - `login(email, password)`
+  - `logout()`
+  - `createProject({ name, description })`
+  - `selectProject(id)`
+  - `selectCourse(id)`
+  - `setRoute(route)`
+  - `updateSettings(patch: Partial<AppSettings>)` (admin-only)
+  - `addCourse(course: Course)` (admin-only for now)
+- Persist only non-sensitive UI/data with `persist`. Keep tokens in-memory unless a secure strategy is defined.
+
+Data Models
+- `Project { id: string; name: string; description?: string; updatedAt: string }`
+- `Course { id: string; title: string; description?: string; updatedAt: string }`
+- `AppSettings {`
+  - `links: { owuiUrl: string; penpotUrl: string; flowiseUrl: string; excalidrawUrl: string; comfyuiUrl: string }`
+  - `routes: { defaultAfterLogin: Route; defaultApp: Route }`
+  - `appearance: { theme: 'light' | 'dark' | 'system'; brandColor: string }`
+  - `courses: { allowSelfEnroll: boolean }`
+  - `misc?: Record<string, unknown>`
+  - `updatedAt: string`
+  - `updatedBy?: string`
+`}`
+
+Auth Integration
+- Target: opendesignschool.ai credentials.
+- `authProvider` interface: `login(email, password)`, `logout()`, `getProfile(token)`.
+- Implement a local mock provider now (fake delay, sample user). Include an admin user (e.g., `roles: ['admin']`).
+- Show inline error feedback for invalid credentials; disable form during submission.
+
+Dashboard
+- Top: brand logo circle (`#B13634`), brief intro to ODSAi Studio.
+- Signed-out: show only the small sign-in button that opens a login card.
+- Signed-in (non-admin): show Project Manager (Projects + Courses).
+- Signed-in (admin): same as above plus an Admin Settings card in the dashboard grid (visible only for admins).
+  - Admin Settings card → routes to `#/settings` and reveals admin sections there.
+
+Settings Page
+- Route: `#/settings`.
+- Non-admin: show user preferences only (theme toggle, basic appearance).
+- Admin:
+  - Show organized sections:
+    - Links: configure external tool URLs (OWUI, Penpot, Flowise, Excalidraw, ComfyUI)
+    - Routes: choose default pages (e.g., after login, default app)
+    - Appearance: theme, brand color
+    - Courses: add/edit/remove courses (basic management for now)
+    - Advanced: placeholder for future options
+  - Save applies `updateSettings()`. Use optimistic UI with inline validation and toasts.
+- Security: hide admin sections if `!isAdmin`, and also guard actions in the store (no-op or throw if not admin).
+
+OWUI Integration
+- On enter:
+  - If `activeProjectId` set, show project name in header stub.
+  - If `channel` param exists, show a subheader stub (logic TBD).
+
+UI/UX
+- Brand color: `#B13634` as Tailwind color `brand`.
+- Accessibility: ARIA labels, focus-visible rings, tooltip semantics.
+- Responsiveness: mobile-friendly; safe-area padding; cards wrap gracefully.
+- Animations: lightweight transitions for menu expand/collapse.
+- Pill menu hidden until `auth.signedIn === true`.
+
+Security
+- Do not persist raw passwords or tokens.
+- Use CSP (frame/connect-src) tailored for your domains; no `X-Frame-Options` when CSP governs framing.
+- Validate routes; guard admin actions; do not trust client role checks alone (server validation later).
+
+Testing
+- Unit tests:
+  - Auth actions (login/logout), role detection (`isAdmin`)
+  - Project creation and selection flows
+  - Route guards and default redirects
+  - Settings store actions with admin gating
+  - PillMenu open/close logic
+- Component tests:
+  - Dashboard: signed-out (login button only), signed-in non-admin (Project Manager), signed-in admin (Admin Settings card visible)
+  - Create Project flow
+  - Settings page: admin vs non-admin sections
+
+Scaffold Impact
+- Components: `Dashboard`, `LoginCard`, `ProjectCard`, `CourseCard`, `CreateProjectModal`, `PillMenu`, `SettingsPanel` (sections: Links, Routes, Appearance, Courses).
+- Store: extend `src/store/appStore.ts` with `auth` (roles), `data` (projects, courses, appSettings), and admin-gated actions.
+- Routing: centralized hash router; default `#/dashboard`.
+- Pages: `Settings` uses `SettingsPanel`; conditional admin sections.
+- OWUI page reads `activeProjectId` and `channel` param stub.
+
+Acceptance Criteria
+- Signed-out: shows intro + small sign-in button; login works with mock provider.
+- Signed-in non-admin: Dashboard shows Projects + Courses; no Enter/Signed-in buttons; no Admin Settings card.
+- Signed-in admin: Dashboard shows Projects + Courses + Admin Settings card; clicking opens Settings with admin sections.
+- Create Project: adds card and routes to `#/ai` with project active.
+- Select Project/Course: routes to `#/ai` with context.
+- Floating app switcher hidden before sign-in; fully functional after.
+
+Change Control
+- This section is the authoritative truth document. Update only with approved and stable details/process/features.
+- Keep entries organized; prefer incremental, clearly-labeled updates.
+ - Versioning: Use SemVer (vMAJOR.MINOR.PATCH). Bump PATCH for clarifications/docs-only, MINOR for new features/sections, MAJOR for breaking reshuffles.
+
+Changelog
+- 2025-09-25 (v0.1.0): Initialize Truth Document (vNext): dashboard-first flow, Projects/Courses, pill menu post-sign-in, hash routes, state model, data models, UI/UX, security, testing, acceptance criteria.
+- 2025-09-25 (v0.2.0): Add Admin Settings: admin-only card, Settings sections (Links, Routes, Appearance, Courses), store actions (`updateSettings`, `addCourse`), access gating.
+- 2025-09-25 (v0.2.1): CSP/Preview: added CSP guidance (frame/connect-src) and removed X-Frame-Options; README local preview instructions.
+- 2025-09-25 (v0.2.2): Doc governance: moved How To Use section to top with Current Version; seeded all Proposed subsections with industry-standard bullets.
+
+Extensible Sections (Stubs)
+- Use these placeholders to capture proposals. Move items to “Approved” only after sign-off. Keep entries concise and actionable.
+
+Architecture
+- Approved:
+- Proposed:
+  - System diagram: client pages, Zustand store slices (auth/ui/data/settings), hash router, external tool iframes, CSP boundaries.
+  - Data flow: login → store update → dashboard state; create/select project → route to `#/ai` with context; course select → `#/ai?channel=<id>`.
+  - Component map: Dashboard (LoginCard, ProjectRow, CourseRow, AdminCard), PillMenu, SettingsPanel, OWUI header stubs.
+  - ADRs: choose Zustand over Redux; hash routing for static hosting; CSP-managed framing; no token persistence by default.
+
+Auth & Roles
+- Approved:
+- Proposed:
+  - Auth flow: email/password → mock provider → user profile with roles; error states (invalid creds, network); lockout/backoff policy (client-only hint).
+  - Roles: user, admin; admin gates Settings sections and Admin card visibility.
+  - Session: in-memory token only; refresh strategy deferred to backend; explicit logout clears auth state and sensitive caches.
+  - Future: OIDC/SSO integration with opendesignschool.ai (placeholder endpoints, scopes, PKCE).
+
+Projects & Courses
+- Approved:
+- Proposed:
+  - Field constraints: name 3–80 chars, description ≤ 500 chars; ids are UUIDv4.
+  - Lifecycle: create, select (activates), edit name/description, archive (hide from default view), unarchive.
+  - Courses: enrollment list sourced from API; cached read-only in client; manual refresh control.
+  - Channel mapping: `#/ai?channel=<courseId>` param contract; OWUI reads from hash and store.
+
+Routing & Navigation
+- Approved:
+- Proposed:
+  - Route table with examples and query params; unknown → `#/dashboard`.
+  - Deep links: allow direct `#/ai?project=<id>` and resolve into store; fallback to dashboard if missing.
+  - Precedence: URL is source of truth; store syncs on `hashchange`; store changes push to hash.
+  - Guards: dashboard shows login when signed-out; Settings admin-only sections hidden + guarded in code.
+
+UI/UX & Accessibility
+- Approved:
+- Proposed:
+  - Design tokens: brand color, spacing scale, radii, typography sizes set in Tailwind theme.
+  - Pill menu: drag boundaries, keyboard focus traversal, ARIA labels, tooltip delays (show on hover/focus), auto-flip.
+  - Dashboard empty/skeleton states: loading shimmer for projects/courses; explicit empty text.
+  - A11y checklist: color contrast ≥ 4.5:1, focus-visible styles, landmark roles, labels for controls.
+
+State & Data
+- Approved:
+- Proposed:
+  - Slices: auth, ui, data, settings; typed selectors; action naming conventions.
+  - Persistence: `persist` only for non-sensitive ui/data; storage key namespaced; migrate function for future schema changes.
+  - Fixtures: sample user (admin and non-admin), sample projects/courses; deterministic ids for demos.
+  - Error/loading: boolean flags per async op; reset helpers.
+
+Admin Settings
+- Approved:
+- Proposed:
+  - AppSettings schema validation (runtime zod/yup) with safe defaults.
+  - Sections: Links (URLs validation), Routes (enum of allowed routes), Appearance (theme + brand color hex), Courses (CRUD limited to admin).
+  - Optimistic updates with rollback on failure; toast notifications; confirm destructive actions.
+  - Audit fields: updatedAt, updatedBy; export/import JSON (admin-only, gated and validated).
+
+OWUI/External Integrations
+- Approved:
+- Proposed:
+  - Iframe embed policy with CSP allowlist; same-origin isolation not required; `sandbox` attribute candidates.
+  - postMessage bridge placeholder for future cross-app signals; namespace events; ignore unknown origins.
+  - Health checks: HEAD/GET to tool URLs with timeouts; show graceful “tool offline” card.
+  - Environment overrides: dev/stage/prod URL sets via settings and/or env.
+
+Security & Privacy
+- Approved:
+- Proposed:
+  - Threat model: XSS mitigations (no `dangerouslySetInnerHTML`), clickjacking via CSP, CSRF not applicable to client-only but note for future APIs.
+  - CSP review cadence; restrict `connect-src`/`frame-src` to known domains in production builds.
+  - PII minimization: do not log emails or tokens; redact sensitive fields in errors.
+  - Admin safeguards: confirmation modals, rate-limit hints for login, exponential backoff for mock provider.
+
+Configuration & Environments
+- Approved:
+- Proposed:
+  - Env matrix: dev/stage/prod profiles; swap tool URLs and CSP via settings or build-time flags.
+  - Feature flags: `enableCourses`, `enableAdmin`, `mockAuth` toggles.
+  - Secrets: never check in; client stores only non-sensitive; server-side integration TBD.
+  - Local dev: Node version pin, commands, known ports, and troubleshooting tips.
+
+Error Handling & Empty States
+- Approved:
+- Proposed:
+  - Error surfaces: inline for forms; toast for global; retry/backoff pattern for network operations.
+  - Empty states: descriptive text + “Create Project” CTA; skeleton loaders for lists.
+  - Global maintenance/offline banner toggled via settings.
+  - Centralized error utility with standardized shapes.
+
+Performance & Monitoring
+- Approved:
+- Proposed:
+  - Performance budgets: JS ≤ 200kB gzip initial, CSS ≤ 20kB; code-split routes where feasible.
+  - Lazy-load non-critical pages; prefetch next likely route.
+  - Logging levels: debug/info/warn/error with sampling; disable debug in production.
+  - Optional analytics events: route change, project select, project create; privacy-first, opt-in only.
+
+Testing & QA
+- Approved:
+- Proposed:
+  - Targets: ≥ 80% coverage for store logic; critical components snapshot + interaction tests.
+  - Accessibility tests: automated axe run on key views.
+  - Test data/mocks: auth, projects/courses, settings; deterministic timers.
+  - Manual QA checklist per release: routing, auth gates, create project, settings save.
+
+CI/CD & Release
+- Approved:
+- Proposed:
+  - CI jobs: lint, typecheck, test; cache node_modules; fail on warnings for main branch.
+  - PR previews: Vite preview or SWA preview URLs; attach to PR.
+  - Release tagging aligned with this doc; changelog update enforced in PR template.
+  - Rollback plan: previous build artifact retention and quick revert instructions.
+
+Docs & Governance
+- Approved:
+- Proposed:
+  - Current Version badge line near top; keep synced with Changelog.
+  - Approved vs Proposed tags usage guide with examples.
+  - Review cadence: weekly doc grooming; stale proposals auto-pruned.
+  - Risks/Mitigations and Open Questions subsections to capture uncertainties until resolved.
