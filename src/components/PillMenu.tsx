@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { FiGrid } from 'react-icons/fi'
 import type { Route } from '../store/appStore'
+import { useAppStore } from '../store/appStore'
 
 const clampToViewport = (x:number,y:number,w:number,h:number,pad=8)=>{
   const maxX=Math.max(pad,window.innerWidth-w-pad)
@@ -27,6 +28,7 @@ export default function PillMenu({
   setRoute: (r: Route) => void
   onDashboard: () => void
 }) {
+  const currentRoute = useAppStore(s=>s.route)
   const [pinMode,setPinMode]=useState('none')
   const [hovering,setHovering]=useState(false)
   const [pos,setPos]=useState({x:40,y:320})
@@ -86,7 +88,7 @@ export default function PillMenu({
                     else setRoute(it.to as Route)
                     setPinMode('open')
                   }}
-                  className="h-10 w-10 rounded-full border bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand"
+                  className={`h-10 w-10 rounded-full border hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand ${currentRoute===it.to ? 'bg-brand text-white border-brand' : 'bg-white'}`}
                 >
                   {it.icon}
                 </button>

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useAppStore } from '../store/appStore'
+import LoginCard from '../components/LoginCard'
+import CreateProjectModal from '../components/CreateProjectModal'
 import { toast } from '../store/toastStore'
 
 export default function Dashboard() {
@@ -9,46 +11,12 @@ export default function Dashboard() {
   const projects = useAppStore((s) => s.projects)
   const courses = useAppStore((s) => s.courses)
   const setRoute = useAppStore((s) => s.setRoute)
-  const login = useAppStore((s) => s.login)
-  const createProject = useAppStore((s) => s.createProject)
   const selectProject = useAppStore((s) => s.selectProject)
   const selectCourse = useAppStore((s) => s.selectCourse)
 
   const [showLogin, setShowLogin] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-    try {
-      await login(email, password)
-      toast.success('Signed in successfully')
-      setShowLogin(false)
-    } catch (err: any) {
-      const msg = err?.message || 'Login failed'
-      setError(msg)
-      toast.error(msg)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const [creating, setCreating] = useState(false)
-  const [pname, setPname] = useState('')
-  const [pdesc, setPdesc] = useState('')
-  const createProjectNow = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!pname.trim()) return
-    const p = createProject({ name: pname.trim(), description: pdesc.trim() || undefined })
-    toast.success('Project created')
-    setPname(''); setPdesc(''); setCreating(false)
-    selectProject(p.id)
-    setRoute('/ai')
-  }
 
   const projectCards = useMemo(() => (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -103,22 +71,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {!signedIn && showLogin && (
-        <form onSubmit={handleLogin} className="mx-auto w-full max-w-md rounded-2xl border bg-white p-6 shadow">
-          <h2 className="text-lg font-semibold mb-4">Sign in</h2>
-          <label className="block text-sm font-medium">Email</label>
-          <input type="email" className="mt-1 w-full rounded border px-3 py-2" value={email} onChange={(e)=>setEmail(e.target.value)} required />
-          <label className="mt-4 block text-sm font-medium">Password</label>
-          <input type="password" className="mt-1 w-full rounded border px-3 py-2" value={password} onChange={(e)=>setPassword(e.target.value)} required />
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          <div className="mt-4 flex items-center gap-3">
-            <button disabled={loading} className="rounded bg-brand px-4 py-2 text-white disabled:opacity-50">{loading? 'Signing in...' : 'Sign in'}</button>
-            <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e)=>e.preventDefault()}>Create account on ODSAi</a>
-            <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e)=>e.preventDefault()}>Forgot password?</a>
-          </div>
-          <p className="mt-3 text-xs text-slate-500">Tip: use email starting with "admin" to see admin features.</p>
-        </form>
-      )}
+      {!signedIn && showLogin && (<LoginCard onClose={()=> setShowLogin(false)} />)}
 
       {signedIn && (
         <div className="space-y-10">
@@ -127,19 +80,7 @@ export default function Dashboard() {
               <h2 className="text-xl font-semibold">Projects</h2>
             </div>
             {!creating && projectCards}
-            {creating && (
-              <form onSubmit={createProjectNow} className="max-w-md rounded-2xl border bg-white p-4 shadow">
-                <h3 className="font-semibold mb-2">Create Project</h3>
-                <label className="block text-sm font-medium">Name</label>
-                <input className="mt-1 w-full rounded border px-3 py-2" value={pname} onChange={(e)=>setPname(e.target.value)} required minLength={3} maxLength={80} />
-                <label className="mt-3 block text-sm font-medium">Description</label>
-                <textarea className="mt-1 w-full rounded border px-3 py-2" value={pdesc} onChange={(e)=>setPdesc(e.target.value)} maxLength={500} />
-                <div className="mt-4 flex gap-3">
-                  <button className="rounded bg-brand px-4 py-2 text-white">Create</button>
-                  <button type="button" onClick={()=>setCreating(false)} className="rounded border px-4 py-2">Cancel</button>
-                </div>
-              </form>
-            )}
+            {creating && (<CreateProjectModal onClose={()=> setCreating(false)} />)}
           </section>
 
           <section>

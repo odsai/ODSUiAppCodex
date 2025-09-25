@@ -10,11 +10,13 @@ import Groups from './pages/Groups'
 import Settings from './pages/Settings'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
+import HeaderBar from './components/HeaderBar'
 
 const App = () => {
   const route = useAppStore((s) => s.route)
   const signedIn = useAppStore((s) => s.signedIn)
   const theme = useAppStore((s) => s.theme)
+  const appSettings = useAppStore((s) => s.appSettings)
   const setRoute = useAppStore((s) => s.setRoute)
   const selectCourse = useAppStore((s) => s.selectCourse)
 
@@ -61,6 +63,15 @@ const App = () => {
     if (window.location.hash !== want) window.location.hash = want
   }, [route])
 
+  // Default-after-login guard on hydrate and when signing in
+  useEffect(() => {
+    if (signedIn && route === '/dashboard') {
+      const next = appSettings?.routes?.defaultAfterLogin || '/dashboard'
+      if (next && next !== '/dashboard') setRoute(next)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn])
+
   // Apply dark class based on theme preference
   useEffect(() => {
     const root = document.documentElement
@@ -86,6 +97,7 @@ const App = () => {
     <>
       <a href="#main" className="skip-link">Skip to content</a>
       <main id="main" className="min-h-screen p-6">
+      <HeaderBar />
       {page}
       {/* Floating pill menu appears only after sign-in */}
       {signedIn && (
