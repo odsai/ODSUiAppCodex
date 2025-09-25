@@ -1,5 +1,8 @@
 # ODSUiAppCodex
 
+[![CI](https://github.com/odsai/ODSUiAppCodex/actions/workflows/ci.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/ci.yml)
+[![Azure SWA Deploy](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml)
+
 Repository: https://github.com/odsai/ODSUiAppCodex
 
 ## Overview
@@ -18,17 +21,23 @@ npm install
 npm run dev
 ```
 
-## Deployment (Azure SWA)
-- Push repo to GitHub
-- Create Azure Static Web App → link repo
-- Build preset: Vite
-- Output folder: dist
-- Done 🚀
+## Deploy to Azure SWA
+This repo includes a ready-to-use GitHub Actions workflow: `.github/workflows/azure-static-web-apps.yml`.
+
+1) Create an Azure Static Web App (Build preset: Vite)
+2) In GitHub → Settings → Secrets and variables → Actions, add:
+   - `AZURE_STATIC_WEB_APPS_API_TOKEN` (value = SWA Deployment Token from Azure)
+3) Push to `main` — the workflow builds (`npm ci && npm run build`) and deploys `dist/`.
+
+Notes
+- `app_location`: `/` (repo root)
+- `output_location`: `dist`
+- No API used (leave `api_location` empty)
 
 ## Content Security Policy (CSP)
 The app ships with a safe-by-default CSP in `staticwebapp.config.json`. When embedding external tools (e.g., OWUI, Penpot, Flowise), whitelist their domains under `frame-src` and `connect-src`.
 
-Edit: `odsui-shell/staticwebapp.config.json`
+Edit: `staticwebapp.config.json`
 
 Example (replace the example domains with yours):
 
@@ -45,12 +54,12 @@ Notes:
 - Keep localhost allowances for dev; remove them for production if not needed.
 
 ## Local Preview
-If you have the bundled Node:
+
+Build and preview the production bundle locally:
 
 ```
-cd odsui-shell
-export PATH="$PWD/../node-v20.11.0-darwin-x64/bin:$PATH"
-npm run preview -- --host 127.0.0.1 --port 5173 --strictPort
+npm run build
+npm run preview
 ```
 
-Open: http://127.0.0.1:5173
+Vite preview runs on port 4173 by default.
