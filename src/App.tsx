@@ -14,6 +14,7 @@ import Toaster from './components/Toaster'
 const App = () => {
   const route = useAppStore((s) => s.route)
   const signedIn = useAppStore((s) => s.signedIn)
+  const theme = useAppStore((s) => s.theme)
   const setRoute = useAppStore((s) => s.setRoute)
   const selectCourse = useAppStore((s) => s.selectCourse)
 
@@ -60,6 +61,14 @@ const App = () => {
     if (window.location.hash !== want) window.location.hash = want
   }, [route])
 
+  // Apply dark class based on theme preference
+  useEffect(() => {
+    const root = document.documentElement
+    const preferDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    const isDark = theme === 'dark' || (theme === 'system' && preferDark)
+    root.classList.toggle('dark', isDark)
+  }, [theme])
+
   let page = null
   switch (route) {
     case '/ai': page = <OWUI />; break
@@ -74,7 +83,9 @@ const App = () => {
   }
 
   return (
-    <main className="min-h-screen p-6">
+    <>
+      <a href="#main" className="skip-link">Skip to content</a>
+      <main id="main" className="min-h-screen p-6">
       {page}
       {/* Floating pill menu appears only after sign-in */}
       {signedIn && (
@@ -82,6 +93,7 @@ const App = () => {
       )}
       <Toaster />
     </main>
+    </>
   )
 }
 export default App

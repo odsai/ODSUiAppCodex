@@ -8,6 +8,7 @@ export default function Settings(){
   const appSettings = useAppStore(s=>s.appSettings)
   const updateSettings = useAppStore(s=>s.updateSettings)
   const setTheme = useAppStore(s=>s.setTheme)
+  const theme = useAppStore(s=>s.theme)
 
   const [draft, setDraft] = useState<AppSettings>(appSettings)
   const [saving, setSaving] = useState(false)
@@ -32,9 +33,17 @@ export default function Settings(){
           <h2 className="font-semibold">Preferences</h2>
           <p className="mt-2 text-sm text-slate-600">Personal preferences (limited view). More will appear here later.</p>
           <div className="mt-4 flex gap-3">
-            <button className="rounded border px-3 py-1" onClick={()=> setTheme('light')}>Light</button>
-            <button className="rounded border px-3 py-1" onClick={()=> setTheme('dark')}>Dark</button>
-            <button className="rounded border px-3 py-1" onClick={()=> setTheme('system')}>System</button>
+            {(['light','dark','system'] as const).map((t)=>{
+              const active = theme === t
+              return (
+                <button
+                  key={t}
+                  aria-pressed={active}
+                  className={`rounded border px-3 py-1 ${active ? 'bg-brand text-white border-brand' : ''}`}
+                  onClick={()=> setTheme(t)}
+                >{t[0].toUpperCase()+t.slice(1)}</button>
+              )
+            })}
           </div>
         </div>
       )}

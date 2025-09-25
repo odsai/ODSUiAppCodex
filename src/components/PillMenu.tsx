@@ -43,6 +43,16 @@ export default function PillMenu({
   useEffect(()=>{window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);return()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp)}},[pos])
 
   const handleFab=()=>{if(moved.current){moved.current=false;return};setPinMode(p=>p==='none'?(hovering?'open':'closed'):p==='open'?'closed':'open')}
+  const onKeyFab=(e: React.KeyboardEvent)=>{
+    if(e.key==='Enter' || e.key===' '){ e.preventDefault(); handleFab() }
+  }
+  const onKeyItems=(e: React.KeyboardEvent<HTMLDivElement>)=>{
+    const focusables = Array.from((e.currentTarget.querySelectorAll('button[role="menuitem"]')) as NodeListOf<HTMLButtonElement>)
+    const idx = focusables.findIndex(el => el === document.activeElement)
+    if(e.key==='ArrowDown'){ e.preventDefault(); const next = focusables[Math.min(idx+1, focusables.length-1)]; next?.focus() }
+    if(e.key==='ArrowUp'){ e.preventDefault(); const prev = focusables[Math.max(idx-1, 0)]; prev?.focus() }
+    if(e.key==='Escape'){ (e.currentTarget.parentElement?.previousElementSibling as HTMLButtonElement | null)?.focus(); setPinMode('closed') }
+  }
   const effective=pinMode==='open'||(pinMode==='none'&&hovering)
   const onSideLeft = pos.x <= window.innerWidth/2
 
@@ -64,10 +74,12 @@ export default function PillMenu({
             style={{ top: FAB + 8, padding: PILLPAD, width: '100%', display: 'grid', gap: GAP }}
             role="menu"
             aria-orientation="vertical"
+            onKeyDown={onKeyItems}
           >
             {items.map((it) => (
               <div key={it.to} className="relative group grid place-items-center">
                 <button
+                  role="menuitem"
                   aria-label={it.label}
                   onClick={() => {
                     if (it.to === '/dashboard') onDashboard()
@@ -97,6 +109,7 @@ export default function PillMenu({
         aria-label="Open menu"
         onMouseDown={onDown}
         onClick={handleFab}
+        onKeyDown={onKeyFab}
         className="relative grid h-14 w-14 place-items-center rounded-full text-white shadow-2xl cursor-pointer bg-brand"
       >
         <FiGrid size={24} />

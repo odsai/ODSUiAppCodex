@@ -3,3 +3,27 @@
 @tailwind utilities;
 body { @apply bg-slate-50 text-slate-900; }
 
+/* Skip link for accessibility */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  width: auto;
+  height: auto;
+  background: #ffffff;
+  color: #111827;
+  border: 2px solid #B13634;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  z-index: 1000;
+}
+
+/* Global focus-visible ring for keyboard users */
+:focus-visible { outline: none; box-shadow: 0 0 0 2px #B13634; }
