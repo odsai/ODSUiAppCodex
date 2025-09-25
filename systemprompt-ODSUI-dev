@@ -1,6 +1,6 @@
 How To Use This Document — Strict Guide
 
-Current Version: v0.2.2
+Current Version: v0.2.3
 Repository: https://github.com/odsai/ODSUiAppCodex
 
 Purpose
@@ -38,6 +38,31 @@ Reading Order
 
 Compliance
 - PRs that touch core flows should include doc updates. Keep entries short, specific, and actionable. Avoid vague language.
+
+Gold Standard Principles
+- Lean, clean, robust, future‑proof
+- Modular, extensible, developer‑friendly
+- User‑friendly, accessible, inclusive
+- Security‑first by design; privacy‑preserving
+- Efficient and performant; costs observable and controlled
+- Scalable architecture; graceful degradation
+- No patchwork; no compromises; favor root‑cause fixes
+- Inventive, innovative, creative within safe bounds
+
+Quality Framework (Garvin’s 8 Dimensions)
+- Performance: fast TTI, smooth interactions, small bundles; budgets enforced in CI.
+- Features: focus on high‑value, composable capabilities with minimal surface area.
+- Reliability: predictable behavior, state persistence rules, route guards; error recovery.
+- Conformance: code style, type safety, a11y, CSP, routing contracts, acceptance criteria.
+- Durability: maintainable modules, stable APIs, migrations and versioning for state/storage.
+- Serviceability: logs, toasts, diagnostics, health checks; clear error surfaces and remedies.
+- Aesthetics: consistent design tokens, motion, theming; brand fidelity (#B13634).
+- Perceived quality: responsive UI, progressive enhancements, polished micro‑interactions.
+
+Evaluation & Gates
+- CI enforces typecheck + build and alerts on bundle budget drift.
+- PRs must state user‑visible changes and update the truth doc where applicable.
+- Security/CSP and a11y checks are mandatory for embedding/UX changes.
 
 Perfect 👍 — here’s a Cursor-ready system prompt you can paste directly into Cursor to continue development seamlessly.
 I’ve compressed all the context into a sharp, actionable brief that Codex/Cursor will understand without overload.
@@ -297,6 +322,7 @@ Changelog
 - 2025-09-25 (v0.1.0): Initialize Truth Document (vNext): dashboard-first flow, Projects/Courses, pill menu post-sign-in, hash routes, state model, data models, UI/UX, security, testing, acceptance criteria.
 - 2025-09-25 (v0.2.0): Add Admin Settings: admin-only card, Settings sections (Links, Routes, Appearance, Courses), store actions (`updateSettings`, `addCourse`), access gating.
 - 2025-09-25 (v0.2.1): CSP/Preview: added CSP guidance (frame/connect-src) and removed X-Frame-Options; README local preview instructions.
+- 2025-09-25 (v0.2.3): Added Gold Standard Principles and Garvin’s 8 Dimensions; defined evaluation gates in CI/PR.
 - 2025-09-25 (v0.2.2): Doc governance: moved How To Use section to top with Current Version; seeded all Proposed subsections with industry-standard bullets.
 
 Extensible Sections (Stubs)
