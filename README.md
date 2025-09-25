@@ -1,7 +1,9 @@
-# ODSUi Shell
+# ODSUiAppCodex
+
+Repository: https://github.com/odsai/ODSUiAppCodex
 
 ## Overview
-ODSUi Shell is a unified interface for open-source AI tools in Design Pedagogy and Practice.
+ODSUiAppCodex hosts the ODSUi Shell app, a unified interface for open-source AI tools in Design Pedagogy and Practice.
 
 ## Tech Stack
 - React 18 + TypeScript + Vite

@@ -1,6 +1,6 @@
-# Contributing to ODSUi Shell
+# Contributing to ODSUiAppCodex
 
-Thanks for your interest in contributing!
+Thanks for your interest in contributing! Repo: https://github.com/odsai/ODSUiAppCodex
 
 ## Ground Rules
 - Follow the truth document at the repo root: `systemprompt-ODSUI-dev`. It is authoritative.
@@ -21,4 +21,3 @@ CI runs lint (non-blocking), typecheck, and build on Node 20.
 - TypeScript + React 18
 - TailwindCSS for styling
 - Keep components small and accessible (ARIA, focus, contrast)
-
