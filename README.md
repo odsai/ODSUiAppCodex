@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/odsai/ODSUiAppCodex/actions/workflows/ci.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/ci.yml)
 [![Azure SWA Deploy](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml)
+<br/>
+CI/Deploy: GitHub Actions with AZURE_STATIC_WEB_APPS_API_TOKEN.
 
 Repository: https://github.com/odsai/ODSUiAppCodex
 Live: https://studio.opendesignschool.ai
