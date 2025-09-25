@@ -65,3 +65,48 @@ npm run preview
 ```
 
 Vite preview runs on port 4173 by default.
+
+## Custom Domain Setup (GoDaddy + Azure App Service)
+Use these steps to bind a subdomain like `studio.opendesignschool.ai` to an Azure App Service.
+
+Prereqs
+- An Azure App Service (Basic tier or higher for custom domains).
+- DNS control for `opendesignschool.ai` in GoDaddy.
+
+1) Get your app’s default hostname
+- Azure Portal → Your App Service → Overview → copy `*.azurewebsites.net`.
+
+2) Start custom domain add flow in Azure
+- App Service → Custom domains → Add custom domain
+- Enter `studio.opendesignschool.ai` → Validate
+- Azure shows a TXT record for verification:
+  - Name/Host: `asuid.studio`
+  - Value: a GUID (copy exactly)
+  Keep this Azure tab open.
+
+3) Add DNS records in GoDaddy
+- Remove any conflicting record named `studio` (A/CNAME/Forwarding).
+- Add TXT (verification):
+  - Type: TXT
+  - Name/Host: `asuid.studio`
+  - Value: the GUID from Azure (no quotes/spaces)
+  - TTL: 1 hour (or default)
+- Add CNAME:
+  - Type: CNAME
+  - Name/Host: `studio`
+  - Value/Target: `<yourapp>.azurewebsites.net`
+  - No protocol (`https://`), no trailing dot or spaces.
+
+4) Complete in Azure
+- Back in the “Add custom domain” dialog → Validate again → Add.
+- Enable HTTPS for `studio.opendesignschool.ai` (Azure auto‑issues SSL).
+
+5) Verify
+- `nslookup studio.opendesignschool.ai` resolves to `*.azurewebsites.net`.
+- `curl -I https://studio.opendesignschool.ai` returns 200/301.
+- Azure → Custom domains shows “Active” with a certificate.
+
+Troubleshooting (GoDaddy “Record data is invalid”)
+- Ensure Value is only the hostname (e.g., `myapp.azurewebsites.net`).
+- Remove any existing record named `studio` before adding the new CNAME.
+- Paste into a plain editor to avoid hidden whitespace.
