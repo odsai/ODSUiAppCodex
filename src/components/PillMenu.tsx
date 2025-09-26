@@ -61,12 +61,17 @@ export default function PillMenu({
 
   const openUp = typeof window !== 'undefined' && pos.y + openH > window.innerHeight - 16
 
+  const rafId = useRef<number | null>(null)
   const handleMove = useCallback((e: MouseEvent) => {
     if (!drag.current) return
     const nx = e.clientX - off.current.x
     const ny = e.clientY - off.current.y
     if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > TH) moved.current = true
-    setPos(clampToViewport(nx, ny, FAB, FAB))
+    if (rafId.current) cancelAnimationFrame(rafId.current)
+    rafId.current = requestAnimationFrame(() => {
+      setPos(clampToViewport(nx, ny, FAB, FAB))
+      rafId.current = null
+    })
   }, [])
 
   const handleUp = useCallback(() => {
@@ -95,6 +100,7 @@ export default function PillMenu({
     return () => {
       document.removeEventListener('mousemove', handleMove)
       document.removeEventListener('mouseup', handleUp)
+      if (rafId.current) cancelAnimationFrame(rafId.current)
     }
   }, [handleMove, handleUp])
 
@@ -162,7 +168,8 @@ export default function PillMenu({
       style={{
         left: pos.x,
         top: pos.y,
-        transition: isDragging ? 'none' : 'left 0.2s ease-out, top 0.2s ease-out',
+        transition: isDragging ? 'none' : 'left 0.15s ease-out, top 0.15s ease-out',
+        willChange: isDragging ? 'left, top' : undefined,
       }}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
@@ -206,12 +213,13 @@ export default function PillMenu({
                   tabIndex={effective ? 0 : -1}
                   onClick={() => {
                     if (item.type === 'app') {
-                      if (item.config.kind === 'route') {
+                      // If a tool link exists, always open inside the shell at /app?id=...
+                      if (item.config.url) {
+                        const id = item.config.id
+                        if (id) window.location.hash = `/app?id=${encodeURIComponent(id)}`
+                      } else if (item.config.kind === 'route') {
                         if (item.config.route === '/dashboard') onDashboard()
                         else setRoute(item.config.route)
-                      } else {
-                        const target = item.config.url
-                        if (target) window.open(target, '_blank', 'noopener')
                       }
                       setPinMode('open')
                     } else handleLogout()

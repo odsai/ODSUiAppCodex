@@ -8,6 +8,7 @@ import Excalidraw from './pages/Excalidraw'
 import ComfyUI from './pages/ComfyUI'
 import Groups from './pages/Groups'
 import Settings from './pages/Settings'
+import ExternalApp from './pages/ExternalApp'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
 
@@ -26,7 +27,7 @@ const App = () => {
       const raw = (window.location.hash || '').replace(/^#/, '')
       const [pathOnly, query = ''] = raw.split('?')
       const params = new URLSearchParams(query)
-      const valid: Route[] = ['/dashboard', '/ai', '/penpot', '/flowise', '/excalidraw', '/comfyui', '/groups', '/settings', '/login']
+      const valid: Route[] = ['/dashboard', '/ai', '/penpot', '/flowise', '/excalidraw', '/comfyui', '/groups', '/settings', '/login', '/app']
       const path = valid.includes(pathOnly as Route) ? (pathOnly as Route) : '/dashboard'
       return { path, params }
     }
@@ -41,6 +42,7 @@ const App = () => {
       const channel = initial.params.get('channel')
       if (channel) selectCourse(channel)
     }
+    // No extra handling for /app here; the page reads params directly
 
     const onHash = () => {
       const next = parseHash()
@@ -59,7 +61,10 @@ const App = () => {
   useEffect(() => {
     const current = window.location.hash.replace(/^#/, '')
     const [curPath, curQuery = ''] = current.split('?')
-    const want = route === '/ai' && curPath === '/ai' && curQuery ? `#${curPath}?${curQuery}` : `#${route}`
+    const want =
+      (route === '/ai' && curPath === '/ai' && curQuery) || (route === '/app' && curPath === '/app' && curQuery)
+        ? `#${curPath}?${curQuery}`
+        : `#${route}`
     if (window.location.hash !== want) window.location.hash = want
   }, [route])
 
@@ -99,6 +104,7 @@ const App = () => {
     case '/comfyui': page = <ComfyUI />; break
     case '/groups': page = <Groups />; break
     case '/settings': page = <Settings />; break
+    case '/app': page = <ExternalApp />; break
     case '/dashboard': page = <Dashboard />; break
     default: page = <OWUI />
   }
@@ -106,7 +112,7 @@ const App = () => {
   return (
     <>
       <a href="#main" className="skip-link">Skip to content</a>
-      <main id="main" className="min-h-screen p-6">
+      <main id="main" className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'}`}>
       {page}
       {/* Floating pill menu appears only after sign-in */}
       {signedIn && (

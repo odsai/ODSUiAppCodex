@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Route = '/dashboard' | '/ai' | '/penpot' | '/flowise' | '/excalidraw' | '/comfyui' | '/groups' | '/settings' | '/login'
+export type Route = '/dashboard' | '/ai' | '/penpot' | '/flowise' | '/excalidraw' | '/comfyui' | '/groups' | '/settings' | '/login' | '/app'
 
 export type User = {
   id: string
