@@ -22,8 +22,8 @@ export default function LoginCard({ onClose }: { onClose?: () => void }) {
       onClose?.()
       const next = appSettings.routes?.defaultAfterLogin || '/dashboard'
       setRoute(next)
-    } catch (err: any) {
-      const msg = err?.message || 'Login failed'
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed'
       setError(msg)
       toast.error(msg)
     } finally {
@@ -44,8 +44,9 @@ export default function LoginCard({ onClose }: { onClose?: () => void }) {
         <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e)=>e.preventDefault()}>Create account on ODSAi</a>
         <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e)=>e.preventDefault()}>Forgot password?</a>
       </div>
-      <p className="mt-3 text-xs text-slate-500">Tip: use email starting with "admin" to see admin features.</p>
+      <p className="mt-3 text-xs text-slate-500">
+        Tip: use email starting with <span className="font-semibold">admin</span> to see admin features.
+      </p>
     </form>
   )
 }
-

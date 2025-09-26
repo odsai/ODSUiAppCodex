@@ -53,5 +53,5 @@ This file gives agents working in this repo the context and conventions needed t
 1) Read this file and the README first.
 2) Make small, focused changes; avoid broad refactors without an explicit request.
 3) Before adding libraries or changing the stack, propose it and document rationale in `docs/DECISIONS.md`.
-4) If you change CSP or cross‑origin embeds, test locally and note updates in `PROJECT_HISTORY`.
-
+4) If you change CSP or cross-origin embeds, test locally and note updates in `PROJECT_HISTORY`.
+5) Commits: only commit when the working tree is clean, tests/builds have passed, and the user explicitly approves the commit in the current session.

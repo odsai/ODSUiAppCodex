@@ -1,163 +1,749 @@
-import React, { useState } from 'react'
-import { useAppStore, type AppSettings, type Route } from '../store/appStore'
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  useAppStore,
+  type AppConfig,
+  type AppSettings,
+  type ColorPalette,
+  type Route,
+} from '../store/appStore'
 import { toast } from '../store/toastStore'
+import { ICON_OPTIONS, resolveIcon } from '../utils/iconCatalog'
 
-export default function Settings(){
-  const user = useAppStore(s=>s.user)
-  const isAdmin = !!user?.roles?.includes('admin')
-  const appSettings = useAppStore(s=>s.appSettings)
-  const updateSettings = useAppStore(s=>s.updateSettings)
-  const setTheme = useAppStore(s=>s.setTheme)
-  const theme = useAppStore(s=>s.theme)
+const ROUTE_OPTIONS: Route[] = ['/dashboard', '/ai', '/penpot', '/flowise', '/excalidraw', '/comfyui', '/groups', '/settings']
+const PROTECTED_APP_IDS = new Set(['app-dashboard', 'app-settings'])
 
-  const [draft, setDraft] = useState<AppSettings>(appSettings)
-  const [saving, setSaving] = useState(false)
+const cloneSettings = (settings: AppSettings): AppSettings =>
+  JSON.parse(JSON.stringify(settings)) as AppSettings
 
-  const onSave = async () => {
-    if (!isAdmin) return
-    setSaving(true)
-    try {
-      updateSettings(draft)
-      toast.success('Settings saved')
-    } catch (e:any) {
-      toast.error('Failed to save settings')
-    } finally { setSaving(false) }
+const makeId = () => `app_${Math.random().toString(36).slice(2, 10)}`
+
+const isValidUrl = (value?: string) => {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch (err) {
+    return false
+  }
+}
+
+type TabId = 'apps' | 'branding' | 'behavior'
+
+const Tabs: { id: TabId; label: string }[] = [
+  { id: 'apps', label: 'Apps' },
+  { id: 'branding', label: 'Branding & Theme' },
+  { id: 'behavior', label: 'Behavior' },
+]
+
+const readFileAsDataUrl = async (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+
+const AppsTab = ({
+  apps,
+  onChange,
+}: {
+  apps: AppConfig[]
+  onChange: (next: AppConfig[]) => void
+}) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const handleUpdate = (id: string, updater: (app: AppConfig) => AppConfig) => {
+    onChange(apps.map((app) => (app.id === id ? updater(app) : app)))
+  }
+
+  const handleKindChange = (id: string, kind: 'route' | 'external') => {
+    handleUpdate(id, (app) => {
+      if (kind === app.kind) return app
+      if (kind === 'route') {
+        const routeValue: Route = app.kind === 'route' ? app.route : '/dashboard'
+        return {
+          ...app,
+          kind: 'route',
+          route: routeValue,
+          url: app.url || '',
+        }
+      }
+      return {
+        id: app.id,
+        label: app.label,
+        description: app.description,
+        icon: app.icon,
+        enabled: app.enabled,
+        adminOnly: app.adminOnly,
+        kind: 'external',
+        url: app.url || '',
+      }
+    })
+  }
+
+  const handleRemove = (id: string) => {
+    onChange(apps.filter((app) => app.id !== id))
+    if (expandedId === id) setExpandedId(null)
+  }
+
+  const handleTest = async (url?: string) => {
+    if (!url) {
+      toast.error('No URL configured yet')
+      return
+    }
+    const { ping } = await import('../utils/health')
+    const ok = await ping(url)
+    if (ok) toast.success('Link reachable')
+    else toast.error('Link appears offline')
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="space-y-4">
+      {apps.map((app) => {
+        const open = expandedId === app.id
+        return (
+          <div key={app.id} className="rounded-xl border bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-slate-50 text-slate-700">
+                  {resolveIcon(app.icon, 18)}
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold">{app.label}</h3>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">{app.kind === 'route' ? app.route : 'External link'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={app.enabled}
+                    onChange={(e) =>
+                      handleUpdate(app.id, (prev) => ({ ...prev, enabled: e.target.checked }))
+                    }
+                    className="h-4 w-4"
+                  />
+                  Enabled
+                </label>
+                <label className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={!!app.adminOnly}
+                    onChange={(e) =>
+                      handleUpdate(app.id, (prev) => ({ ...prev, adminOnly: e.target.checked }))
+                    }
+                    className="h-4 w-4"
+                  />
+                  Admin only
+                </label>
+                <button
+                  type="button"
+                  className="rounded border px-3 py-1 text-sm text-slate-600"
+                  onClick={() => setExpandedId(open ? null : app.id)}
+                >
+                  {open ? 'Close' : 'Configure'}
+                </button>
+              </div>
+            </div>
 
-      {!isAdmin && (
-        <div className="rounded border bg-white p-4">
-          <h2 className="font-semibold">Preferences</h2>
-          <p className="mt-2 text-sm text-slate-600">Personal preferences (limited view). More will appear here later.</p>
+            {open && (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium">Display name</label>
+                  <input
+                    className="w-full rounded border px-3 py-2"
+                    value={app.label}
+                    onChange={(e) =>
+                      handleUpdate(app.id, (prev) => ({ ...prev, label: e.target.value }))
+                    }
+                  />
+                  <label className="block text-sm font-medium">Description (optional)</label>
+                  <textarea
+                    className="h-20 w-full rounded border px-3 py-2"
+                    value={app.description || ''}
+                    onChange={(e) =>
+                      handleUpdate(app.id, (prev) => ({ ...prev, description: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium">Icon</label>
+                  <select
+                    className="w-full rounded border px-3 py-2"
+                    value={app.icon}
+                    onChange={(e) =>
+                      handleUpdate(app.id, (prev) => ({ ...prev, icon: e.target.value }))
+                    }
+                  >
+                    {ICON_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="block text-sm font-medium">App type</label>
+                  <select
+                    className="w-full rounded border px-3 py-2"
+                    value={app.kind}
+                    onChange={(e) => handleKindChange(app.id, e.target.value as 'route' | 'external')}
+                  >
+                    <option value="route">Route in studio</option>
+                    <option value="external">External link</option>
+                  </select>
+                </div>
+
+                {app.kind === 'route' && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium">Destination route</label>
+                    <select
+                      className="w-full rounded border px-3 py-2"
+                      value={app.route}
+                      onChange={(e) =>
+                        handleUpdate(app.id, (prev) => ({
+                          ...prev,
+                          route: e.target.value as Route,
+                        }))
+                      }
+                    >
+                      {ROUTE_OPTIONS.map((route) => (
+                        <option key={route} value={route}>
+                          {route}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium">Tool link</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 rounded border px-3 py-2"
+                      value={app.url || ''}
+                      placeholder="https://example.com"
+                      onChange={(e) =>
+                        handleUpdate(app.id, (prev) => ({ ...prev, url: e.target.value }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="rounded border px-3 py-2 text-sm"
+                      onClick={() => handleTest(app.url)}
+                    >
+                      Test
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    The link is used for availability checks and embed configuration.
+                  </p>
+                </div>
+
+                {!PROTECTED_APP_IDS.has(app.id) && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-slate-600">Remove app</label>
+                    <button
+                      type="button"
+                      className="rounded border border-red-200 px-3 py-2 text-sm text-red-500 hover:bg-red-50"
+                      onClick={() => handleRemove(app.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      <button
+        type="button"
+        className="rounded-lg border border-dashed px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        onClick={() => {
+          const newApp: AppConfig = {
+            id: makeId(),
+            label: 'New App',
+            icon: 'FiTool',
+            enabled: true,
+            adminOnly: false,
+            url: '',
+            kind: 'external',
+          }
+          onChange([...apps, newApp])
+          setExpandedId(newApp.id)
+        }}
+      >
+        + Add app
+      </button>
+    </div>
+  )
+}
+
+const BrandingTab = ({
+  appearance,
+  onChange,
+}: {
+  appearance: AppSettings['appearance']
+  onChange: (next: AppSettings['appearance']) => void
+}) => {
+  const activePalette = useMemo(
+    () => appearance.palettes.find((p) => p.id === appearance.selectedPaletteId) || appearance.palettes[0],
+    [appearance.palettes, appearance.selectedPaletteId],
+  )
+
+  const handlePaletteChange = (id: string, patch: Partial<ColorPalette>) => {
+    const next = appearance.palettes.map((palette) =>
+      palette.id === id ? { ...palette, ...patch } : palette,
+    )
+    onChange({ ...appearance, palettes: next })
+  }
+
+  const addPalette = () => {
+    const newPalette: ColorPalette = {
+      id: `palette_${Math.random().toString(36).slice(2, 8)}`,
+      name: 'New scheme',
+      primary: '#2563EB',
+      secondary: '#1E293B',
+      accent: '#38BDF8',
+    }
+    onChange({ ...appearance, palettes: [...appearance.palettes, newPalette] })
+  }
+
+  const removePalette = (id: string) => {
+    if (appearance.palettes.length <= 1) {
+      toast.error('Keep at least one palette')
+      return
+    }
+    const next = appearance.palettes.filter((palette) => palette.id !== id)
+    const selected = appearance.selectedPaletteId === id ? next[0]?.id ?? '' : appearance.selectedPaletteId
+    onChange({ ...appearance, palettes: next, selectedPaletteId: selected })
+  }
+
+  const handleSelectPalette = (id: string) => {
+    const palette = appearance.palettes.find((item) => item.id === id)
+    onChange({
+      ...appearance,
+      selectedPaletteId: id,
+      brandColor: palette?.primary ?? appearance.brandColor,
+    })
+  }
+
+  const handleFile = async (file: File, key: 'logoDataUrl' | 'iconDataUrl') => {
+    const dataUrl = await readFileAsDataUrl(file)
+    onChange({ ...appearance, [key]: dataUrl })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Studio title</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={appearance.title}
+              onChange={(e) => onChange({ ...appearance, title: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Intro text</label>
+            <textarea
+              className="mt-1 h-24 w-full rounded border px-3 py-2"
+              value={appearance.intro}
+              onChange={(e) => onChange({ ...appearance, intro: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Intro alignment</label>
+            <select
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={appearance.introAlignment}
+              onChange={(e) =>
+                onChange({ ...appearance, introAlignment: e.target.value as 'left' | 'center' })
+              }
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+            </select>
+          </div>
+        </div>
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-sm font-semibold text-slate-500">Live preview</p>
+          <div
+            className={`mt-3 rounded-xl border-2 p-6 text-${appearance.introAlignment} shadow-inner`}
+            style={{
+              borderColor: activePalette?.accent,
+              background: `${activePalette?.primary}15`,
+            }}
+          >
+            {appearance.logoDataUrl ? (
+              <img src={appearance.logoDataUrl} alt="Logo preview" className="mx-auto h-16 object-contain" />
+            ) : (
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand text-white">
+                Logo
+              </div>
+            )}
+            <h2 className="mt-4 text-2xl font-bold" style={{ color: appearance.brandColor }}>
+              {appearance.title || 'Welcome to ODSAiStudio!'}
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">{appearance.intro}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Primary brand color</label>
+            <input
+              type="text"
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={appearance.brandColor}
+              onChange={(e) => onChange({ ...appearance, brandColor: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Logo upload</label>
+            <input
+              type="file"
+              accept="image/png, image/jpeg, image/svg+xml"
+              className="mt-1 w-full text-sm"
+              onChange={async (e) => {
+                if (e.target.files?.[0]) await handleFile(e.target.files[0], 'logoDataUrl')
+              }}
+            />
+            {appearance.logoDataUrl && (
+              <div className="mt-3 flex items-center gap-3">
+                <img src={appearance.logoDataUrl} alt="Logo" className="h-12" />
+                <button
+                  type="button"
+                  className="text-sm text-red-500"
+                  onClick={() => onChange({ ...appearance, logoDataUrl: undefined })}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Icon upload</label>
+            <input
+              type="file"
+              accept="image/png, image/jpeg, image/svg+xml"
+              className="mt-1 w-full text-sm"
+              onChange={async (e) => {
+                if (e.target.files?.[0]) await handleFile(e.target.files[0], 'iconDataUrl')
+              }}
+            />
+            {appearance.iconDataUrl && (
+              <div className="mt-3 flex items-center gap-3">
+                <img src={appearance.iconDataUrl} alt="Icon" className="h-12" />
+                <button
+                  type="button"
+                  className="text-sm text-red-500"
+                  onClick={() => onChange({ ...appearance, iconDataUrl: undefined })}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Color schemes</h3>
+            <button type="button" className="text-sm text-brand" onClick={addPalette}>
+              + Add scheme
+            </button>
+          </div>
+          <div className="space-y-3">
+            {appearance.palettes.map((palette) => (
+              <div key={palette.id} className="rounded border p-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input
+                      type="radio"
+                      name="palette"
+                      checked={appearance.selectedPaletteId === palette.id}
+                      onChange={() => handleSelectPalette(palette.id)}
+                    />
+                    {palette.name}
+                  </label>
+                  <button
+                    type="button"
+                    className="text-xs text-red-500"
+                    onClick={() => removePalette(palette.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <div>
+                    <label className="block text-xs uppercase text-slate-500">Primary</label>
+                    <input
+                      type="text"
+                      className="w-full rounded border px-2 py-1 text-sm"
+                      value={palette.primary}
+                      onChange={(e) => handlePaletteChange(palette.id, { primary: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase text-slate-500">Secondary</label>
+                    <input
+                      type="text"
+                      className="w-full rounded border px-2 py-1 text-sm"
+                      value={palette.secondary}
+                      onChange={(e) => handlePaletteChange(palette.id, { secondary: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase text-slate-500">Accent</label>
+                    <input
+                      type="text"
+                      className="w-full rounded border px-2 py-1 text-sm"
+                      value={palette.accent}
+                      onChange={(e) => handlePaletteChange(palette.id, { accent: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const BehaviorTab = ({
+  draft,
+  onChange,
+}: {
+  draft: AppSettings
+  onChange: (next: AppSettings) => void
+}) => {
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border bg-white p-4 shadow-sm">
+        <h3 className="text-base font-semibold">Routing defaults</h3>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium">Default after login</label>
+            <select
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={draft.routes.defaultAfterLogin}
+              onChange={(e) =>
+                onChange({
+                  ...draft,
+                  routes: { ...draft.routes, defaultAfterLogin: e.target.value as Route },
+                })
+              }
+            >
+              {ROUTE_OPTIONS.map((route) => (
+                <option key={route} value={route}>
+                  {route}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Default app</label>
+            <select
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={draft.routes.defaultApp}
+              onChange={(e) =>
+                onChange({
+                  ...draft,
+                  routes: { ...draft.routes, defaultApp: e.target.value as Route },
+                })
+              }
+            >
+              {ROUTE_OPTIONS.filter((route) => route !== '/settings' && route !== '/dashboard').map((route) => (
+                <option key={route} value={route}>
+                  {route}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-white p-4 shadow-sm">
+        <h3 className="text-base font-semibold">Courses</h3>
+        <label className="mt-3 flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={draft.courses.allowSelfEnroll}
+            onChange={(e) =>
+              onChange({
+                ...draft,
+                courses: { ...draft.courses, allowSelfEnroll: e.target.checked },
+              })
+            }
+          />
+          Allow self-enrollment
+        </label>
+      </section>
+    </div>
+  )
+}
+
+export default function Settings() {
+  const user = useAppStore((s) => s.user)
+  const isAdmin = !!user?.roles?.includes('admin')
+  const appSettings = useAppStore((s) => s.appSettings)
+  const updateSettings = useAppStore((s) => s.updateSettings)
+  const setTheme = useAppStore((s) => s.setTheme)
+  const theme = useAppStore((s) => s.theme)
+
+  const [draft, setDraft] = useState<AppSettings>(() => cloneSettings(appSettings))
+  const [activeTab, setActiveTab] = useState<TabId>('apps')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setDraft(cloneSettings(appSettings))
+  }, [appSettings])
+
+  const validateDraft = () => {
+    const errors: string[] = []
+    draft.apps.forEach((app) => {
+      if (!app.label.trim()) errors.push('Each app needs a name')
+      if (app.kind === 'route' && !app.route) errors.push(`${app.label} missing a route`)
+      if ((app.kind === 'external' || app.url) && app.url && !isValidUrl(app.url)) {
+        errors.push(`${app.label}: invalid link ${app.url}`)
+      }
+    })
+    if (!draft.appearance.palettes.length) {
+      errors.push('At least one color palette is required')
+    }
+    const hasDefaultRoute = draft.apps.some(
+      (app) => app.kind === 'route' && app.route === draft.routes.defaultApp && app.enabled,
+    )
+    if (!hasDefaultRoute) {
+      errors.push('Default app route must reference an enabled internal app')
+    }
+    const hasAfterLoginRoute = draft.apps.some(
+      (app) => app.kind === 'route' && app.route === draft.routes.defaultAfterLogin && app.enabled,
+    )
+    if (!hasAfterLoginRoute) {
+      errors.push('Default after-login route must reference an enabled internal app')
+    }
+    if (errors.length) {
+      toast.error(errors[0])
+      return false
+    }
+    return true
+  }
+
+  const onSave = async () => {
+    if (!isAdmin) return
+    if (!validateDraft()) return
+    setSaving(true)
+    try {
+      updateSettings(cloneSettings(draft))
+      toast.success('Settings saved')
+    } catch (err) {
+      toast.error('Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <h1 className="text-2xl font-bold">Settings</h1>
+        <section className="rounded-xl border bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold">Theme preference</h2>
+          <p className="mt-1 text-sm text-slate-600">Switch between light, dark, or system modes.</p>
           <div className="mt-4 flex gap-3">
-            {(['light','dark','system'] as const).map((t)=>{
-              const active = theme === t
+            {(['light', 'dark', 'system'] as const).map((mode) => {
+              const active = theme === mode
               return (
                 <button
-                  key={t}
-                  aria-pressed={active}
-                  className={`rounded border px-3 py-1 ${active ? 'bg-brand text-white border-brand' : ''}`}
-                  onClick={()=> setTheme(t)}
-                >{t[0].toUpperCase()+t.slice(1)}</button>
+                  key={mode}
+                  className={`rounded-full border px-4 py-2 text-sm ${
+                    active ? 'border-brand bg-brand text-white' : 'border-slate-200'
+                  }`}
+                  onClick={() => setTheme(mode)}
+                >
+                  {mode.toUpperCase()}
+                </button>
               )
             })}
           </div>
+        </section>
+        <section className="rounded-xl border bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">
+            Additional administrative settings are only available to workspace admins.
+          </p>
+        </section>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Admin Settings</h1>
+          <p className="text-sm text-slate-500">Manage tools, theming, and default behavior for ODSAiStudio.</p>
         </div>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto rounded-full border bg-white p-1 shadow-sm">
+        {Tabs.map((tab) => {
+          const active = tab.id === activeTab
+          return (
+            <button
+              key={tab.id}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                active ? 'bg-brand text-white shadow-sm' : 'text-slate-600'
+              }`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {activeTab === 'apps' && (
+        <AppsTab
+          apps={draft.apps}
+          onChange={(apps) => setDraft((prev) => ({ ...prev, apps }))}
+        />
       )}
 
-      {isAdmin && (
-        <>
-          <section className="rounded border bg-white p-4">
-            <h2 className="font-semibold">Links</h2>
-            <p className="mt-1 text-sm text-slate-600">Provide the hosted URLs for your tools. Use Test to check reachability.</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className="rounded border px-3 py-1 text-sm"
-                onClick={() => {
-                  const localhost = {
-                    owuiUrl: 'http://localhost:3000',
-                    penpotUrl: 'http://localhost:9001',
-                    flowiseUrl: 'http://localhost:3001',
-                    excalidrawUrl: 'http://localhost:4000',
-                    comfyuiUrl: 'http://localhost:8188',
-                  }
-                  setDraft({ ...draft, links: { ...draft.links, ...localhost } })
-                  toast.info('Prefilled localhost defaults (adjust as needed)')
-                }}
-              >
-                Prefill localhost defaults
-              </button>
-              <button
-                type="button"
-                className="rounded border px-3 py-1 text-sm"
-                onClick={() => {
-                  setDraft({
-                    ...draft,
-                    links: { owuiUrl: '', penpotUrl: '', flowiseUrl: '', excalidrawUrl: '', comfyuiUrl: '' },
-                  })
-                }}
-              >
-                Clear all
-              </button>
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {(['owuiUrl','penpotUrl','flowiseUrl','excalidrawUrl','comfyuiUrl'] as const).map((k)=> (
-                <div key={k}>
-                  <label className="block text-sm font-medium">{k}</label>
-                  <div className="mt-1 flex gap-2">
-                    <input className="flex-1 rounded border px-3 py-2" value={draft.links[k]}
-                      onChange={(e)=> setDraft({...draft, links: {...draft.links, [k]: e.target.value}})} placeholder={`https://...`} />
-                    <button type="button" className="rounded border px-3 py-2" onClick={async ()=>{
-                      const { ping } = await import('../utils/health')
-                      const ok = await ping(draft.links[k])
-                      if (ok) toast.success(`${k} reachable`) ; else toast.error(`${k} seems offline`)
-                    }}>Test</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded border bg-white p-4">
-            <h2 className="font-semibold">Routes</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium">Default After Login</label>
-                <select className="mt-1 w-full rounded border px-3 py-2" value={draft.routes.defaultAfterLogin}
-                  onChange={(e)=> setDraft({...draft, routes: {...draft.routes, defaultAfterLogin: e.target.value as Route}})}>
-                  {['/dashboard','/ai','/penpot','/flowise','/excalidraw','/comfyui','/groups','/settings'].map((r)=> (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Default App</label>
-                <select className="mt-1 w-full rounded border px-3 py-2" value={draft.routes.defaultApp}
-                  onChange={(e)=> setDraft({...draft, routes: {...draft.routes, defaultApp: e.target.value as Route}})}>
-                  {['/ai','/penpot','/flowise','/excalidraw','/comfyui'].map((r)=> (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded border bg-white p-4">
-            <h2 className="font-semibold">Appearance</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium">Theme</label>
-                <select className="mt-1 w-full rounded border px-3 py-2" value={draft.appearance.theme}
-                  onChange={(e)=> setDraft({...draft, appearance: {...draft.appearance, theme: e.target.value as AppSettings['appearance']['theme']}})}>
-                  {['system','light','dark'].map((t)=> (<option key={t} value={t}>{t}</option>))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Brand Color</label>
-                <input type="text" className="mt-1 w-full rounded border px-3 py-2" value={draft.appearance.brandColor}
-                  onChange={(e)=> setDraft({...draft, appearance: {...draft.appearance, brandColor: e.target.value}})} />
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded border bg-white p-4">
-            <h2 className="font-semibold">Courses</h2>
-            <div className="mt-3 flex items-center gap-3">
-              <label className="text-sm">Allow self-enroll</label>
-              <input type="checkbox" checked={draft.courses.allowSelfEnroll} onChange={(e)=> setDraft({...draft, courses: {...draft.courses, allowSelfEnroll: e.target.checked}})} />
-            </div>
-          </section>
-
-          <div className="flex gap-3">
-            <button disabled={saving} onClick={onSave} className="rounded bg-brand px-4 py-2 text-white disabled:opacity-50">{saving?'Saving...':'Save'}</button>
-            <button disabled={saving} onClick={()=> setDraft(appSettings)} className="rounded border px-4 py-2 disabled:opacity-50">Reset</button>
-          </div>
-        </>
+      {activeTab === 'branding' && (
+        <BrandingTab
+          appearance={draft.appearance}
+          onChange={(appearance) => setDraft((prev) => ({ ...prev, appearance }))}
+        />
       )}
+
+      {activeTab === 'behavior' && (
+        <BehaviorTab draft={draft} onChange={(next) => setDraft(next)} />
+      )}
+
+      <div className="flex gap-3 border-t pt-4">
+        <button
+          type="button"
+          className="rounded bg-brand px-4 py-2 text-white disabled:opacity-60"
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+        <button
+          type="button"
+          className="rounded border px-4 py-2"
+          onClick={() => setDraft(cloneSettings(appSettings))}
+        >
+          Reset
+        </button>
+      </div>
     </div>
   )
 }

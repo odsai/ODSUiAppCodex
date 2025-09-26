@@ -29,7 +29,7 @@ export default function Dashboard() {
         + Create Project
       </button>
     </div>
-  ), [projects])
+  ), [projects, selectProject, setRoute])
 
   const courseCards = useMemo(() => (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -40,7 +40,7 @@ export default function Dashboard() {
         </button>
       ))}
     </div>
-  ), [courses])
+  ), [courses, selectCourse])
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">

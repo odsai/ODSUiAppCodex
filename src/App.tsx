@@ -16,6 +16,7 @@ const App = () => {
   const signedIn = useAppStore((s) => s.signedIn)
   const theme = useAppStore((s) => s.theme)
   const appSettings = useAppStore((s) => s.appSettings)
+  const appearance = appSettings.appearance
   const setRoute = useAppStore((s) => s.setRoute)
   const selectCourse = useAppStore((s) => s.selectCourse)
 
@@ -78,6 +79,16 @@ const App = () => {
     const isDark = theme === 'dark' || (theme === 'system' && preferDark)
     root.classList.toggle('dark', isDark)
   }, [theme])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const palette = appearance.palettes.find((p) => p.id === appearance.selectedPaletteId) || appearance.palettes[0]
+    root.style.setProperty('--brand-color', appearance.brandColor || palette?.primary || '#B13634')
+    if (palette) {
+      root.style.setProperty('--brand-secondary', palette.secondary)
+      root.style.setProperty('--brand-accent', palette.accent)
+    }
+  }, [appearance])
 
   let page = null
   switch (route) {

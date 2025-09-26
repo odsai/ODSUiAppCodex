@@ -1,20 +1,10 @@
 // Floating pill menu
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import {
-  FiGrid,
-  FiLogOut,
-  FiHome,
-  FiCpu,
-  FiFeather,
-  FiActivity,
-  FiEdit3,
-  FiLayout,
-  FiUsers,
-  FiSettings,
-} from 'react-icons/fi'
-import type { Route } from '../store/appStore'
+import { FiGrid, FiLogOut } from 'react-icons/fi'
+import type { AppConfig, Route } from '../store/appStore'
 import { useAppStore } from '../store/appStore'
 import { toast } from '../store/toastStore'
+import { resolveIcon } from '../utils/iconCatalog'
 
 const clampToViewport = (x: number, y: number, w: number, h: number, pad = 8) => {
   const maxX = Math.max(pad, window.innerWidth - w - pad)
@@ -23,22 +13,8 @@ const clampToViewport = (x: number, y: number, w: number, h: number, pad = 8) =>
 }
 
 type MenuItem =
-  | { type: 'route'; label: string; icon: React.ReactNode; to: Route | '/dashboard' }
+  | { type: 'app'; config: AppConfig; icon: React.ReactNode }
   | { type: 'logout'; label: string; icon: React.ReactNode }
-
-const iconSize = 18
-
-const items: MenuItem[] = [
-  { type: 'route', label: 'Dashboard', icon: <FiHome size={iconSize} />, to: '/dashboard' },
-  { type: 'route', label: 'OWUI', icon: <FiCpu size={iconSize} />, to: '/ai' },
-  { type: 'route', label: 'Penpot', icon: <FiFeather size={iconSize} />, to: '/penpot' },
-  { type: 'route', label: 'Flowise', icon: <FiActivity size={iconSize} />, to: '/flowise' },
-  { type: 'route', label: 'Excalidraw', icon: <FiEdit3 size={iconSize} />, to: '/excalidraw' },
-  { type: 'route', label: 'ComfyUI', icon: <FiLayout size={iconSize} />, to: '/comfyui' },
-  { type: 'route', label: 'Groups', icon: <FiUsers size={iconSize} />, to: '/groups' },
-  { type: 'route', label: 'Settings', icon: <FiSettings size={iconSize} />, to: '/settings' },
-  { type: 'logout', label: 'Logout', icon: <FiLogOut size={iconSize} /> },
-]
 
 export default function PillMenu({
   setRoute,
@@ -48,6 +24,9 @@ export default function PillMenu({
   onDashboard: () => void
 }) {
   const currentRoute = useAppStore((s) => s.route)
+  const user = useAppStore((s) => s.user)
+  const isAdmin = !!user?.roles?.includes('admin')
+  const appSettings = useAppStore((s) => s.appSettings)
   const logout = useAppStore((s) => s.logout)
 
   const [pinMode, setPinMode] = useState<'none' | 'open' | 'closed'>('none')
@@ -68,7 +47,15 @@ export default function PillMenu({
   const GAP = 10
   const TH = 5
 
-  const stackH = PILLPAD * 2 + items.length * ITEMS + (items.length - 1) * GAP
+  const resolvedItems: MenuItem[] = React.useMemo(() => {
+    const base = (appSettings?.apps || [])
+      .filter((app) => app.enabled && (!app.adminOnly || isAdmin))
+      .map((config) => ({ type: 'app', config, icon: resolveIcon(config.icon) }) as MenuItem)
+    base.push({ type: 'logout', label: 'Logout', icon: <FiLogOut size={18} /> })
+    return base
+  }, [appSettings?.apps, isAdmin])
+
+  const stackH = PILLPAD * 2 + resolvedItems.length * ITEMS + (resolvedItems.length - 1) * GAP
   const stackOffset = stackH + 8
   const openH = stackH + FAB + 8
 
@@ -208,26 +195,34 @@ export default function PillMenu({
             onKeyDown={onKeyItems}
             aria-hidden={!effective}
           >
-            {items.map((it) => (
-              <div key={it.type === 'route' ? it.to : 'logout'} className="group relative grid place-items-center">
+            {resolvedItems.map((item) => (
+              <div
+                key={item.type === 'app' ? item.config.id : 'logout'}
+                className="group relative grid place-items-center"
+              >
                 <button
                   role="menuitem"
-                  aria-label={it.label}
+                  aria-label={item.type === 'app' ? item.config.label : item.label}
                   tabIndex={effective ? 0 : -1}
                   onClick={() => {
-                    if (it.type === 'route') {
-                      if (it.to === '/dashboard') onDashboard()
-                      else setRoute(it.to as Route)
+                    if (item.type === 'app') {
+                      if (item.config.kind === 'route') {
+                        if (item.config.route === '/dashboard') onDashboard()
+                        else setRoute(item.config.route)
+                      } else {
+                        const target = item.config.url
+                        if (target) window.open(target, '_blank', 'noopener')
+                      }
                       setPinMode('open')
-                    } else {
-                      handleLogout()
-                    }
+                    } else handleLogout()
                   }}
                   className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-colors duration-150 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand ${
-                    it.type === 'route' && currentRoute === it.to ? 'border-brand bg-brand text-white' : 'bg-white'
+                    item.type === 'app' && item.config.kind === 'route' && currentRoute === item.config.route
+                      ? 'border-brand bg-brand text-white'
+                      : 'bg-white'
                   }`}
                 >
-                  {it.icon}
+                  {item.type === 'app' ? item.icon : item.icon}
                 </button>
                 <span
                   className="pointer-events-none absolute whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-xs text-white opacity-0 shadow transition-opacity duration-150 group-hover:opacity-100"
@@ -236,7 +231,7 @@ export default function PillMenu({
                     right: onSideLeft ? undefined : 'calc(100% + 8px)',
                   }}
                 >
-                  {it.label}
+                  {item.type === 'app' ? item.config.label : item.label}
                 </span>
               </div>
             ))}

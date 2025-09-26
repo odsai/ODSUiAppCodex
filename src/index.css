@@ -1,6 +1,17 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --brand-color: #B13634;
+  --brand-secondary: #1F2937;
+  --brand-accent: #F59E0B;
+}
+
+.bg-brand { background-color: var(--brand-color) !important; }
+.text-brand { color: var(--brand-color) !important; }
+.border-brand { border-color: var(--brand-color) !important; }
+
 body { @apply bg-slate-50 text-slate-900; }
 
 /* Skip link for accessibility */
@@ -19,11 +30,11 @@ body { @apply bg-slate-50 text-slate-900; }
   height: auto;
   background: #ffffff;
   color: #111827;
-  border: 2px solid #B13634;
+  border: 2px solid var(--brand-color);
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
   z-index: 1000;
 }
 
 /* Global focus-visible ring for keyboard users */
-:focus-visible { outline: none; box-shadow: 0 0 0 2px #B13634; }
+:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--brand-color); }

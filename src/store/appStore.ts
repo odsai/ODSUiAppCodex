@@ -24,14 +24,257 @@ export type Course = {
   updatedAt: string
 }
 
+export type ColorPalette = {
+  id: string
+  name: string
+  primary: string
+  secondary: string
+  accent: string
+}
+
+type RouteAppConfig = {
+  kind: 'route'
+  route: Route
+}
+
+type ExternalAppConfig = {
+  kind: 'external'
+  url: string
+}
+
+export type AppConfig = {
+  id: string
+  label: string
+  description?: string
+  icon: string
+  enabled: boolean
+  adminOnly?: boolean
+  url?: string
+} & (RouteAppConfig | ExternalAppConfig)
+
 export type AppSettings = {
-  links: { owuiUrl: string; penpotUrl: string; flowiseUrl: string; excalidrawUrl: string; comfyuiUrl: string }
+  apps: AppConfig[]
   routes: { defaultAfterLogin: Route; defaultApp: Route }
-  appearance: { theme: 'light' | 'dark' | 'system'; brandColor: string }
+  appearance: {
+    theme: 'light' | 'dark' | 'system'
+    brandColor: string
+    title: string
+    intro: string
+    introAlignment: 'left' | 'center'
+    logoDataUrl?: string
+    iconDataUrl?: string
+    palettes: ColorPalette[]
+    selectedPaletteId: string
+  }
   courses: { allowSelfEnroll: boolean }
   misc?: Record<string, unknown>
   updatedAt: string
   updatedBy?: string
+}
+
+const ROUTE_CHOICES: Route[] = [
+  '/dashboard',
+  '/ai',
+  '/penpot',
+  '/flowise',
+  '/excalidraw',
+  '/comfyui',
+  '/groups',
+  '/settings',
+  '/login',
+]
+
+const BASE_APPS: AppConfig[] = [
+  { id: 'app-dashboard', label: 'Dashboard', icon: 'FiHome', enabled: true, kind: 'route', route: '/dashboard' },
+  { id: 'app-owui', label: 'OWUI', icon: 'FiCpu', enabled: true, kind: 'route', route: '/ai', url: '' },
+  { id: 'app-penpot', label: 'Penpot', icon: 'FiFeather', enabled: true, kind: 'route', route: '/penpot', url: '' },
+  { id: 'app-flowise', label: 'Flowise', icon: 'FiActivity', enabled: true, kind: 'route', route: '/flowise', url: '' },
+  { id: 'app-excalidraw', label: 'Excalidraw', icon: 'FiEdit3', enabled: true, kind: 'route', route: '/excalidraw', url: '' },
+  { id: 'app-comfyui', label: 'ComfyUI', icon: 'FiLayout', enabled: true, kind: 'route', route: '/comfyui', url: '' },
+  { id: 'app-groups', label: 'Groups', icon: 'FiUsers', enabled: true, kind: 'route', route: '/groups', url: '' },
+  { id: 'app-settings', label: 'Settings', icon: 'FiSettings', enabled: true, adminOnly: true, kind: 'route', route: '/settings' },
+]
+
+const BASE_APP_MAP = new Map(BASE_APPS.map((app) => [app.id, app]))
+
+const BASE_PALETTES: ColorPalette[] = [
+  { id: 'palette-classic', name: 'Classic Red', primary: '#B13634', secondary: '#1F2937', accent: '#F59E0B' },
+  { id: 'palette-ocean', name: 'Ocean', primary: '#2563EB', secondary: '#0F172A', accent: '#38BDF8' },
+  { id: 'palette-forest', name: 'Forest', primary: '#15803D', secondary: '#0B3A25', accent: '#65A30D' },
+]
+
+const cloneBaseApps = () => BASE_APPS.map((app) => ({ ...app }))
+const cloneBasePalettes = () => BASE_PALETTES.map((palette) => ({ ...palette }))
+
+const generateAppId = () => `app_${Math.random().toString(36).slice(2, 10)}`
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+const normalizePalette = (palette: unknown, fallback: ColorPalette, index: number): ColorPalette => {
+  const record: Record<string, unknown> = isRecord(palette) ? palette : {}
+  const id = typeof record.id === 'string' && record.id ? record.id : fallback?.id || `palette_${index}`
+  const name = typeof record.name === 'string' && record.name ? record.name : fallback?.name || `Scheme ${index + 1}`
+  const primary =
+    typeof record.primary === 'string' && record.primary ? record.primary : fallback?.primary || '#2563EB'
+  const secondary =
+    typeof record.secondary === 'string' && record.secondary ? record.secondary : fallback?.secondary || '#1E293B'
+  const accent =
+    typeof record.accent === 'string' && record.accent ? record.accent : fallback?.accent || '#38BDF8'
+
+  return { id, name, primary, secondary, accent }
+}
+
+const normalizeAppConfig = (input: unknown): AppConfig => {
+  const data: Record<string, unknown> = isRecord(input) ? input : {}
+  const fallback = typeof data.id === 'string' ? BASE_APP_MAP.get(data.id) : undefined
+  const id = typeof data.id === 'string' && data.id ? data.id : fallback?.id ?? generateAppId()
+  const label = typeof data.label === 'string' && data.label ? data.label : fallback?.label ?? 'App'
+  const icon = typeof data.icon === 'string' && data.icon ? data.icon : fallback?.icon ?? 'FiGrid'
+  const description = typeof data.description === 'string' ? (data.description as string) : fallback?.description
+  const enabled = data.enabled !== undefined ? !!data.enabled : fallback?.enabled ?? true
+  const adminOnly = data.adminOnly !== undefined ? !!data.adminOnly : fallback?.adminOnly ?? false
+  const kind: 'route' | 'external' =
+    data.kind === 'external' || data.kind === 'route' ? (data.kind as 'route' | 'external') : fallback?.kind ?? 'route'
+  const url = typeof data.url === 'string' ? (data.url as string) : fallback?.url ?? ''
+
+  if (kind === 'external') {
+    return { id, label, description, icon, enabled, adminOnly, kind: 'external', url }
+  }
+
+  const routeCandidate = data.route
+  const route: Route = ROUTE_CHOICES.includes(routeCandidate as Route)
+    ? (routeCandidate as Route)
+    : fallback?.kind === 'route'
+    ? fallback.route
+    : '/dashboard'
+
+  return { id, label, description, icon, enabled, adminOnly, kind: 'route', route, url }
+}
+
+const createDefaultAppSettings = (): AppSettings => {
+  const palettes = cloneBasePalettes()
+  return {
+    apps: cloneBaseApps(),
+    routes: { defaultAfterLogin: '/dashboard', defaultApp: '/ai' },
+    appearance: {
+      theme: 'system',
+      brandColor: palettes[0]?.primary ?? '#B13634',
+      title: 'Welcome to ODSAiStudio!',
+      intro: 'Unified interface for OpenSource AI tools in Design Pedagogy.',
+      introAlignment: 'center',
+      palettes,
+      selectedPaletteId: palettes[0]?.id ?? 'palette-classic',
+    },
+    courses: { allowSelfEnroll: false },
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+const normalizeAppSettings = (incoming: unknown): AppSettings => {
+  const record: Record<string, unknown> = isRecord(incoming) ? incoming : {}
+  const defaults = createDefaultAppSettings()
+
+  const normalizedRoutes = {
+    defaultAfterLogin: ROUTE_CHOICES.includes(
+      isRecord(record.routes) ? (record.routes.defaultAfterLogin as Route) : undefined,
+    )
+      ? ((record.routes as Record<string, unknown>).defaultAfterLogin as Route)
+      : defaults.routes.defaultAfterLogin,
+    defaultApp: ROUTE_CHOICES.includes(
+      isRecord(record.routes) ? (record.routes.defaultApp as Route) : undefined,
+    )
+      ? ((record.routes as Record<string, unknown>).defaultApp as Route)
+      : defaults.routes.defaultApp,
+  }
+
+  let apps: AppConfig[]
+  if (Array.isArray(record.apps) && record.apps.length) {
+    apps = (record.apps as unknown[]).map((app) => normalizeAppConfig(app))
+  } else if (isRecord(record.links)) {
+    const links = record.links as Record<string, unknown>
+    apps = cloneBaseApps().map((app) => {
+      const getLink = (key: string) => (typeof links[key] === 'string' ? (links[key] as string) : '')
+      if (app.id === 'app-owui') return { ...app, url: getLink('owuiUrl') }
+      if (app.id === 'app-penpot') return { ...app, url: getLink('penpotUrl') }
+      if (app.id === 'app-flowise') return { ...app, url: getLink('flowiseUrl') }
+      if (app.id === 'app-excalidraw') return { ...app, url: getLink('excalidrawUrl') }
+      if (app.id === 'app-comfyui') return { ...app, url: getLink('comfyuiUrl') }
+      return app
+    })
+  } else {
+    apps = cloneBaseApps()
+  }
+
+  apps = apps.map((app) => ({ ...app, id: app.id || generateAppId() }))
+
+  const appearanceRecord: Record<string, unknown> = isRecord(record.appearance) ? record.appearance : {}
+  const rawPalettes = appearanceRecord.palettes
+  const palettes = Array.isArray(rawPalettes) && rawPalettes.length
+    ? (rawPalettes as unknown[]).map((palette, index: number) =>
+        normalizePalette(palette, BASE_PALETTES[index % BASE_PALETTES.length], index),
+      )
+    : cloneBasePalettes()
+
+  const selectedPaletteId =
+    typeof appearanceRecord.selectedPaletteId === 'string' &&
+    palettes.some((palette) => palette.id === appearanceRecord.selectedPaletteId)
+      ? (appearanceRecord.selectedPaletteId as string)
+      : palettes[0]?.id ?? defaults.appearance.selectedPaletteId
+
+  const brandColor =
+    typeof appearanceRecord.brandColor === 'string' && appearanceRecord.brandColor
+      ? (appearanceRecord.brandColor as string)
+      : palettes[0]?.primary ?? defaults.appearance.brandColor
+
+  const introAlignment =
+    appearanceRecord.introAlignment === 'left' || appearanceRecord.introAlignment === 'center'
+      ? (appearanceRecord.introAlignment as 'left' | 'center')
+      : defaults.appearance.introAlignment
+
+  const theme =
+    appearanceRecord.theme === 'light' ||
+    appearanceRecord.theme === 'dark' ||
+    appearanceRecord.theme === 'system'
+      ? (appearanceRecord.theme as 'light' | 'dark' | 'system')
+      : defaults.appearance.theme
+
+  return {
+    apps,
+    routes: normalizedRoutes,
+    appearance: {
+      theme,
+      brandColor,
+      title:
+        typeof appearanceRecord.title === 'string'
+          ? (appearanceRecord.title as string)
+          : defaults.appearance.title,
+      intro:
+        typeof appearanceRecord.intro === 'string'
+          ? (appearanceRecord.intro as string)
+          : defaults.appearance.intro,
+      introAlignment,
+      logoDataUrl:
+        typeof appearanceRecord.logoDataUrl === 'string'
+          ? (appearanceRecord.logoDataUrl as string)
+          : undefined,
+      iconDataUrl:
+        typeof appearanceRecord.iconDataUrl === 'string'
+          ? (appearanceRecord.iconDataUrl as string)
+          : undefined,
+      palettes,
+      selectedPaletteId,
+    },
+    courses: {
+      allowSelfEnroll:
+        isRecord(record.courses) && record.courses.allowSelfEnroll !== undefined
+          ? !!record.courses.allowSelfEnroll
+          : defaults.courses.allowSelfEnroll,
+    },
+    misc: record.misc ?? defaults.misc,
+    updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
+    updatedBy: typeof record.updatedBy === 'string' ? (record.updatedBy as string) : defaults.updatedBy,
+  }
 }
 
 type AppState = {
@@ -90,13 +333,7 @@ export const useAppStore = create<AppState>()(
         { id: 'course-201', title: 'RAG Fundamentals', description: 'Retrieval-Augmented Generation basics', updatedAt: now() },
         { id: 'course-305', title: 'Prompt Engineering', description: 'Patterns and practices', updatedAt: now() },
       ],
-      appSettings: {
-        links: { owuiUrl: '', penpotUrl: '', flowiseUrl: '', excalidrawUrl: '', comfyuiUrl: '' },
-        routes: { defaultAfterLogin: '/dashboard', defaultApp: '/ai' },
-        appearance: { theme: 'system', brandColor: '#B13634' },
-        courses: { allowSelfEnroll: false },
-        updatedAt: now(),
-      },
+      appSettings: createDefaultAppSettings(),
 
       // Actions
       setTheme: (t) => set({ theme: t }),
@@ -108,7 +345,9 @@ export const useAppStore = create<AppState>()(
         await new Promise((res) => setTimeout(res, 500))
         if (!email || !password) throw new Error('Please enter email and password')
         // Very simple mock: if email starts with 'admin', grant admin role
-        const isAdmin = /^admin/i.test(email)
+        const normalizedEmail = email.trim().toLowerCase()
+        const adminEmails = new Set(['odsai.iitb@gmail.com'])
+        const isAdmin = /^admin/i.test(email) || adminEmails.has(normalizedEmail)
         const user: User = {
           id: `user_${uid()}`,
           name: isAdmin ? 'Admin User' : 'ODSAi User',
@@ -131,10 +370,31 @@ export const useAppStore = create<AppState>()(
       selectProject: (id) => set({ activeProjectId: id, activeCourseId: undefined }),
       selectCourse: (id) => set({ activeCourseId: id, activeProjectId: undefined }),
 
-      updateSettings: (patch) => set({ appSettings: { ...get().appSettings, ...patch, updatedAt: now() } }),
+      updateSettings: (patch) => {
+        const current = get().appSettings
+        const merged = {
+          ...current,
+          ...patch,
+          routes: { ...current.routes, ...patch?.routes },
+          appearance: { ...current.appearance, ...patch?.appearance },
+          courses: { ...current.courses, ...patch?.courses },
+          apps: patch?.apps ?? current.apps,
+          updatedAt: now(),
+        }
+        set({ appSettings: normalizeAppSettings(merged) })
+      },
     }),
     {
       name: 'odsui-app',
+      version: 2,
+      migrate: (state) => {
+        if (!state || typeof state !== 'object') return state
+        const next: Record<string, unknown> = { ...(state as Record<string, unknown>) }
+        if ('appSettings' in next) {
+          next.appSettings = normalizeAppSettings(next.appSettings)
+        }
+        return next
+      },
       partialize: (state) => ({
         // Persist non-sensitive parts
         theme: state.theme,
