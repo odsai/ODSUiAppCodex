@@ -34,6 +34,7 @@ export default function PillMenu({
   const [pos, setPos] = useState({ x: 40, y: 320 })
   const [isDragging, setIsDragging] = useState(false)
   const [showStack, setShowStack] = useState(false)
+  const positionRef = useRef({ x: 40, y: 320 })
 
   const drag = useRef(false)
   const start = useRef({ x: 0, y: 0 })
@@ -69,7 +70,9 @@ export default function PillMenu({
     if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > TH) moved.current = true
     if (rafId.current) cancelAnimationFrame(rafId.current)
     rafId.current = requestAnimationFrame(() => {
-      setPos(clampToViewport(nx, ny, FAB, FAB))
+      const clamped = clampToViewport(nx, ny, FAB, FAB)
+      positionRef.current = clamped
+      setPos(clamped)
       rafId.current = null
     })
   }, [])
@@ -78,7 +81,11 @@ export default function PillMenu({
     if (!drag.current) return
     drag.current = false
     setIsDragging(false)
-    setPos((p) => clampToViewport(p.x, p.y, FAB, FAB))
+    setPos((p) => {
+      const clamped = clampToViewport(p.x, p.y, FAB, FAB)
+      positionRef.current = clamped
+      return clamped
+    })
     document.removeEventListener('mousemove', handleMove)
     document.removeEventListener('mouseup', handleUp)
   }, [handleMove])
@@ -166,10 +173,11 @@ export default function PillMenu({
     <div
       className="fixed z-50 select-none"
       style={{
-        left: pos.x,
-        top: pos.y,
-        transition: isDragging ? 'none' : 'left 0.15s ease-out, top 0.15s ease-out',
-        willChange: isDragging ? 'left, top' : undefined,
+        left: 0,
+        top: 0,
+        transform: `translate3d(${positionRef.current.x}px, ${positionRef.current.y}px, 0)`,
+        transition: isDragging ? 'none' : 'transform 120ms ease-out',
+        willChange: 'transform',
       }}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
