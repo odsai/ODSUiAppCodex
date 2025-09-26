@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import LoginCard from '../components/LoginCard'
 import CreateProjectModal from '../components/CreateProjectModal'
-import { toast } from '../store/toastStore'
 
 export default function Dashboard() {
   const signedIn = useAppStore((s) => s.signedIn)
@@ -45,23 +44,7 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
-      {signedIn && (
-        <div className="flex items-center justify-end gap-3">
-          <div className="text-sm text-slate-700">{user?.name} ({user?.email})</div>
-          <button
-            className="rounded border px-3 py-1 hover:bg-slate-50"
-            onClick={() => {
-              if (confirm('Are you sure you want to log out?')) {
-                useAppStore.getState().logout()
-                toast.info('Logged out')
-                setRoute('/dashboard')
-              }
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      )}
+      {/* header controls intentionally removed per UI request */}
       <div className="flex flex-col items-center text-center space-y-4">
         <div className="h-24 w-24 rounded-full flex items-center justify-center bg-brand text-white text-xl font-bold">Logo</div>
         <h1 className="text-3xl font-bold">Welcome to ODSAiStudio!</h1>

@@ -10,7 +10,6 @@ import Groups from './pages/Groups'
 import Settings from './pages/Settings'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
-import HeaderBar from './components/HeaderBar'
 
 const App = () => {
   const route = useAppStore((s) => s.route)
@@ -97,7 +96,6 @@ const App = () => {
     <>
       <a href="#main" className="skip-link">Skip to content</a>
       <main id="main" className="min-h-screen p-6">
-      <HeaderBar />
       {page}
       {/* Floating pill menu appears only after sign-in */}
       {signedIn && (
