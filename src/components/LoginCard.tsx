@@ -12,12 +12,22 @@ export default function LoginCard({ onClose }: { onClose?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const ssoEnabled =
+    appSettings.auth?.enabled &&
+    !!appSettings.auth.clientId &&
+    !!appSettings.auth.authority &&
+    typeof window !== 'undefined'
+
+  const handleLogin = async (e?: React.FormEvent | React.MouseEvent<HTMLButtonElement>) => {
+    e?.preventDefault()
     setError(null)
     setLoading(true)
     try {
-      await login(email, password)
+      if (ssoEnabled) {
+        await login('', '')
+      } else {
+        await login(email, password)
+      }
       toast.success('Signed in successfully')
       onClose?.()
       const next = appSettings.routes?.defaultAfterLogin || '/dashboard'
@@ -31,18 +41,55 @@ export default function LoginCard({ onClose }: { onClose?: () => void }) {
     }
   }
 
+  if (ssoEnabled) {
+    return (
+      <div className="mx-auto w-full max-w-md rounded-2xl border bg-white p-6 shadow">
+        <h2 className="text-lg font-semibold mb-4">Sign in with Azure AD</h2>
+        <p className="text-sm text-slate-600">
+          You will be redirected to Microsoft Entra ID to authenticate. After sign-in you return here automatically.
+        </p>
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="mt-4 w-full rounded bg-brand px-4 py-2 text-white disabled:opacity-50"
+        >
+          {loading ? 'Opening Azure login…' : 'Continue with Microsoft'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={handleLogin} className="mx-auto w-full max-w-md rounded-2xl border bg-white p-6 shadow">
       <h2 className="text-lg font-semibold mb-4">Sign in</h2>
       <label className="block text-sm font-medium">Email</label>
-      <input type="email" className="mt-1 w-full rounded border px-3 py-2" value={email} onChange={(e)=>setEmail(e.target.value)} required />
+      <input
+        type="email"
+        className="mt-1 w-full rounded border px-3 py-2"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
       <label className="mt-4 block text-sm font-medium">Password</label>
-      <input type="password" className="mt-1 w-full rounded border px-3 py-2" value={password} onChange={(e)=>setPassword(e.target.value)} required />
+      <input
+        type="password"
+        className="mt-1 w-full rounded border px-3 py-2"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       <div className="mt-4 flex items-center gap-3">
-        <button disabled={loading} className="rounded bg-brand px-4 py-2 text-white disabled:opacity-50">{loading? 'Signing in...' : 'Sign in'}</button>
-        <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e)=>e.preventDefault()}>Create account on ODSAi</a>
-        <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e)=>e.preventDefault()}>Forgot password?</a>
+        <button disabled={loading} className="rounded bg-brand px-4 py-2 text-white disabled:opacity-50">
+          {loading ? 'Signing in...' : 'Sign in'}
+        </button>
+        <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e) => e.preventDefault()}>
+          Create account on ODSAi
+        </a>
+        <a className="text-sm text-slate-600 hover:underline" href="#" onClick={(e) => e.preventDefault()}>
+          Forgot password?
+        </a>
       </div>
       <p className="mt-3 text-xs text-slate-500">
         Tip: use email starting with <span className="font-semibold">admin</span> to see admin features.

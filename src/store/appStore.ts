@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { azureLogin, azureLogout, acquireAzureToken } from '../utils/authClient'
 
 export type Route = '/dashboard' | '/ai' | '/penpot' | '/flowise' | '/excalidraw' | '/comfyui' | '/groups' | '/settings' | '/login' | '/app'
 
@@ -52,6 +53,18 @@ export type AppConfig = {
   url?: string
 } & (RouteAppConfig | ExternalAppConfig)
 
+export type AuthConfig = {
+  provider: 'azure-ad'
+  enabled: boolean
+  tenantId: string
+  authority: string
+  clientId: string
+  redirectUri: string
+  postLogoutRedirectUri: string
+  scopes: string[]
+  audience?: string
+}
+
 export type AppSettings = {
   apps: AppConfig[]
   routes: { defaultAfterLogin: Route; defaultApp: Route }
@@ -67,6 +80,7 @@ export type AppSettings = {
     selectedPaletteId: string
   }
   courses: { allowSelfEnroll: boolean }
+  auth: AuthConfig
   misc?: Record<string, unknown>
   updatedAt: string
   updatedBy?: string
@@ -102,6 +116,18 @@ const BASE_PALETTES: ColorPalette[] = [
   { id: 'palette-ocean', name: 'Ocean', primary: '#2563EB', secondary: '#0F172A', accent: '#38BDF8' },
   { id: 'palette-forest', name: 'Forest', primary: '#15803D', secondary: '#0B3A25', accent: '#65A30D' },
 ]
+
+const DEFAULT_AUTH: AuthConfig = {
+  provider: 'azure-ad',
+  enabled: false,
+  tenantId: '',
+  authority: 'https://login.microsoftonline.com/common',
+  clientId: '',
+  redirectUri: '',
+  postLogoutRedirectUri: '',
+  scopes: ['openid', 'profile', 'email'],
+  audience: '',
+}
 
 const cloneBaseApps = () => BASE_APPS.map((app) => ({ ...app }))
 const cloneBasePalettes = () => BASE_PALETTES.map((palette) => ({ ...palette }))
@@ -152,6 +178,46 @@ const normalizeAppConfig = (input: unknown): AppConfig => {
   return { id, label, description, icon, enabled, adminOnly, kind: 'route', route, url }
 }
 
+const normalizeAuthConfig = (input: unknown): AuthConfig => {
+  const data: Record<string, unknown> = isRecord(input) ? input : {}
+  const tenantId = typeof data.tenantId === 'string' ? data.tenantId.trim() : DEFAULT_AUTH.tenantId
+  const authorityCandidate = typeof data.authority === 'string' ? data.authority.trim() : ''
+  const authority = authorityCandidate || (tenantId ? `https://login.microsoftonline.com/${tenantId}` : DEFAULT_AUTH.authority)
+  const clientId = typeof data.clientId === 'string' ? data.clientId.trim() : DEFAULT_AUTH.clientId
+  const redirectUri = typeof data.redirectUri === 'string' ? data.redirectUri.trim() : DEFAULT_AUTH.redirectUri
+  const postLogoutRedirectUri =
+    typeof data.postLogoutRedirectUri === 'string'
+      ? data.postLogoutRedirectUri.trim()
+      : DEFAULT_AUTH.postLogoutRedirectUri
+  const enabled = data.enabled !== undefined ? !!data.enabled : DEFAULT_AUTH.enabled
+  const audience = typeof data.audience === 'string' ? data.audience.trim() : DEFAULT_AUTH.audience
+
+  let scopes: string[] = DEFAULT_AUTH.scopes
+  if (Array.isArray(data.scopes)) {
+    scopes = (data.scopes as unknown[])
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean)
+  } else if (typeof data.scopes === 'string') {
+    scopes = data.scopes
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  if (scopes.length === 0) scopes = [...DEFAULT_AUTH.scopes]
+
+  return {
+    provider: 'azure-ad',
+    enabled,
+    tenantId,
+    authority,
+    clientId,
+    redirectUri,
+    postLogoutRedirectUri,
+    scopes,
+    audience,
+  }
+}
+
 const createDefaultAppSettings = (): AppSettings => {
   const palettes = cloneBasePalettes()
   return {
@@ -167,6 +233,7 @@ const createDefaultAppSettings = (): AppSettings => {
       selectedPaletteId: palettes[0]?.id ?? 'palette-classic',
     },
     courses: { allowSelfEnroll: false },
+    auth: { ...DEFAULT_AUTH },
     updatedAt: new Date().toISOString(),
   }
 }
@@ -271,6 +338,7 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           ? !!record.courses.allowSelfEnroll
           : defaults.courses.allowSelfEnroll,
     },
+    auth: normalizeAuthConfig(record.auth),
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
     updatedBy: typeof record.updatedBy === 'string' ? (record.updatedBy as string) : defaults.updatedBy,
@@ -341,23 +409,68 @@ export const useAppStore = create<AppState>()(
       setLoginOpen: (v) => set({ loginOpen: v }),
 
       login: async (email: string, password: string) => {
-        // Mock provider: small delay and simple branching
+        const auth = get().appSettings.auth
+        const useAzure = auth.enabled && auth.clientId && auth.authority && typeof window !== 'undefined'
+
+        if (useAzure) {
+          try {
+            const loginResult = await azureLogin(auth)
+            const silentToken = await acquireAzureToken(auth)
+            const account = loginResult.account ?? silentToken?.account ?? null
+            if (!account) throw new Error('Azure AD did not return an account')
+
+            const claims = (loginResult.idTokenClaims || silentToken?.idTokenClaims) as
+              | Record<string, unknown>
+              | undefined
+
+            const nameClaim = typeof claims?.name === 'string' ? (claims.name as string) : undefined
+            const preferredUsername =
+              typeof claims?.preferred_username === 'string'
+                ? (claims.preferred_username as string)
+                : undefined
+            const rolesClaim = Array.isArray(claims?.roles)
+              ? (claims?.roles as unknown[]).filter((r): r is string => typeof r === 'string')
+              : []
+
+            const user: User = {
+              id: account.homeAccountId,
+              name: nameClaim || account.name || account.username,
+              email: preferredUsername || account.username,
+              roles: rolesClaim,
+            }
+
+            const token = loginResult.accessToken || silentToken?.accessToken || loginResult.idToken || undefined
+
+            set({ signedIn: true, user, token, loginOpen: false })
+            return
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Azure SSO login failed'
+            throw new Error(message)
+          }
+        }
+
+        // Fallback mock provider: small delay and simple branching
         await new Promise((res) => setTimeout(res, 500))
         if (!email || !password) throw new Error('Please enter email and password')
-        // Very simple mock: if email starts with 'admin', grant admin role
         const normalizedEmail = email.trim().toLowerCase()
         const adminEmails = new Set(['odsai.iitb@gmail.com'])
         const isAdmin = /^admin/i.test(email) || adminEmails.has(normalizedEmail)
-        const user: User = {
+        const fallbackUser: User = {
           id: `user_${uid()}`,
           name: isAdmin ? 'Admin User' : 'ODSAi User',
           email,
           roles: isAdmin ? ['admin'] : ['user'],
         }
-        set({ signedIn: true, user, token: 'mock', loginOpen: false })
+        set({ signedIn: true, user: fallbackUser, token: 'mock', loginOpen: false })
       },
 
       logout: () => {
+        const auth = get().appSettings.auth
+        if (auth.enabled && auth.clientId && auth.authority && typeof window !== 'undefined') {
+          azureLogout(auth).catch(() => {
+            // swallow logout errors to avoid blocking UI
+          })
+        }
         set({ signedIn: false, user: null, token: undefined, activeProjectId: undefined, activeCourseId: undefined })
       },
 
@@ -379,6 +492,7 @@ export const useAppStore = create<AppState>()(
           appearance: { ...current.appearance, ...patch?.appearance },
           courses: { ...current.courses, ...patch?.courses },
           apps: patch?.apps ?? current.apps,
+          auth: { ...current.auth, ...patch?.auth },
           updatedAt: now(),
         }
         set({ appSettings: normalizeAppSettings(merged) })

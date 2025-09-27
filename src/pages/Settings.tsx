@@ -27,12 +27,13 @@ const isValidUrl = (value?: string) => {
   }
 }
 
-type TabId = 'apps' | 'branding' | 'behavior'
+type TabId = 'apps' | 'branding' | 'behavior' | 'auth'
 
 const Tabs: { id: TabId; label: string }[] = [
   { id: 'apps', label: 'Apps' },
   { id: 'branding', label: 'Branding & Theme' },
   { id: 'behavior', label: 'Behavior' },
+  { id: 'auth', label: 'Single Sign-On' },
 ]
 
 const readFileAsDataUrl = async (file: File) =>
@@ -589,6 +590,165 @@ const BehaviorTab = ({
   )
 }
 
+const AuthTab = ({
+  auth,
+  onChange,
+}: {
+  auth: AppSettings['auth']
+  onChange: (next: AppSettings['auth']) => void
+}) => {
+  const [testing, setTesting] = useState(false)
+
+  const scopesText = useMemo(() => auth.scopes.join('\n'), [auth.scopes])
+
+  const update = (patch: Partial<AppSettings['auth']>) => {
+    onChange({ ...auth, ...patch })
+  }
+
+  const handleTenantChange = (value: string) => {
+    const trimmed = value.trim()
+    const suggestedAuthority = trimmed
+      ? `https://login.microsoftonline.com/${trimmed}`
+      : 'https://login.microsoftonline.com/common'
+    const shouldUpdateAuthority =
+      !auth.authority ||
+      auth.authority.endsWith(`/${auth.tenantId}`) ||
+      auth.authority.includes('/common')
+
+    update({
+      tenantId: trimmed,
+      authority: shouldUpdateAuthority ? suggestedAuthority : auth.authority,
+    })
+  }
+
+  const handleScopesChange = (value: string) => {
+    const next = value
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    update({ scopes: next.length ? next : ['openid', 'profile', 'email'] })
+  }
+
+  const testConfiguration = async () => {
+    if (!auth.authority || !isValidUrl(auth.authority)) {
+      toast.error('Authority must be a valid URL before testing')
+      return
+    }
+    setTesting(true)
+    try {
+      const cleanAuthority = auth.authority.replace(/\/$/, '')
+      const res = await fetch(`${cleanAuthority}/.well-known/openid-configuration`)
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+      await res.json()
+      toast.success('Azure AD discovery endpoint reachable')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reach discovery endpoint'
+      toast.error(message)
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold">Azure Active Directory (Entra ID)</h3>
+            <p className="text-sm text-slate-500">Configure tenant details to enable single sign-on across the studio.</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={auth.enabled}
+              onChange={(e) => update({ enabled: e.target.checked })}
+            />
+            Enable
+          </label>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium">Tenant ID</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              value={auth.tenantId}
+              onChange={(e) => handleTenantChange(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500">Azure Entra tenant GUID. Updates the authority automatically.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Authority URL</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              placeholder="https://login.microsoftonline.com/<tenant>"
+              value={auth.authority}
+              onChange={(e) => update({ authority: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Client ID (Application ID)</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={auth.clientId}
+              onChange={(e) => update({ clientId: e.target.value.trim() })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Redirect URI</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              placeholder={`${typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.example.com'}/auth/callback`}
+              value={auth.redirectUri}
+              onChange={(e) => update({ redirectUri: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-slate-500">Register this URI in Azure app registration (SPA redirect).</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Post-logout redirect URI</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={auth.postLogoutRedirectUri}
+              onChange={(e) => update({ postLogoutRedirectUri: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Scopes (space or comma separated)</label>
+            <textarea
+              className="mt-1 h-24 w-full rounded border px-3 py-2 text-sm"
+              value={scopesText}
+              onChange={(e) => handleScopesChange(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500">Defaults to openid, profile, email. Add API scopes as needed.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="button"
+            className="rounded border px-4 py-2 text-sm"
+            onClick={testConfiguration}
+            disabled={testing}
+          >
+            {testing ? 'Testing…' : 'Test discovery endpoint'}
+          </button>
+          <span className="text-xs text-slate-500">Ensure the discovery document resolves before enabling SSO.</span>
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-white p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-600">Notes</h3>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-500">
+          <li>Use a SPA (single-page application) registration in Azure Entra ID with PKCE enabled.</li>
+          <li>Do not store client secrets in the browser. If your flow requires one, delegate to a backend.</li>
+          <li>Every embedded tool should trust the same identity provider for seamless sign-in.</li>
+        </ul>
+      </section>
+    </div>
+  )
+}
+
 export default function Settings() {
   const user = useAppStore((s) => s.user)
   const isAdmin = !!user?.roles?.includes('admin')
@@ -628,6 +788,15 @@ export default function Settings() {
     )
     if (!hasAfterLoginRoute) {
       errors.push('Default after-login route must reference an enabled internal app')
+    }
+    if (draft.auth.enabled) {
+      if (!draft.auth.clientId.trim()) errors.push('SSO client ID is required when enabling Azure AD')
+      if (!draft.auth.authority || !isValidUrl(draft.auth.authority)) {
+        errors.push('SSO authority must be a valid URL')
+      }
+      if (!draft.auth.redirectUri || !isValidUrl(draft.auth.redirectUri)) {
+        errors.push('SSO redirect URI must be a valid URL')
+      }
     }
     if (errors.length) {
       toast.error(errors[0])
@@ -725,6 +894,13 @@ export default function Settings() {
 
       {activeTab === 'behavior' && (
         <BehaviorTab draft={draft} onChange={(next) => setDraft(next)} />
+      )}
+
+      {activeTab === 'auth' && (
+        <AuthTab
+          auth={draft.auth}
+          onChange={(authConfig) => setDraft((prev) => ({ ...prev, auth: authConfig }))}
+        />
       )}
 
       <div className="flex gap-3 border-t pt-4">
