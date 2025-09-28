@@ -182,15 +182,19 @@ const AppsTab = ({
                       </option>
                     ))}
                   </select>
-                  <label className="block text-sm font-medium">App type</label>
+                  <label className="block text-sm font-medium">Open mode</label>
                   <select
                     className="w-full rounded border px-3 py-2"
                     value={app.kind}
                     onChange={(e) => handleKindChange(app.id, e.target.value as 'route' | 'external')}
                   >
-                    <option value="route">Route in studio</option>
-                    <option value="external">External link</option>
+                    <option value="external">Open inside shell (iframe)</option>
+                    <option value="route">Navigate to internal view</option>
                   </select>
+                  <p className="text-xs text-slate-500">
+                    Use the Open inside shell option for any URL you want to embed; choose Navigate only if this app
+                    maps to a built-in ODSUi view.
+                  </p>
                 </div>
 
                 {app.kind === 'route' && (
@@ -777,18 +781,6 @@ export default function Settings() {
     if (!draft.appearance.palettes.length) {
       errors.push('At least one color palette is required')
     }
-    const hasDefaultRoute = draft.apps.some(
-      (app) => app.kind === 'route' && app.route === draft.routes.defaultApp && app.enabled,
-    )
-    if (!hasDefaultRoute) {
-      errors.push('Default app route must reference an enabled internal app')
-    }
-    const hasAfterLoginRoute = draft.apps.some(
-      (app) => app.kind === 'route' && app.route === draft.routes.defaultAfterLogin && app.enabled,
-    )
-    if (!hasAfterLoginRoute) {
-      errors.push('Default after-login route must reference an enabled internal app')
-    }
     if (draft.auth.enabled) {
       if (!draft.auth.clientId.trim()) errors.push('SSO client ID is required when enabling Azure AD')
       if (!draft.auth.authority || !isValidUrl(draft.auth.authority)) {
@@ -808,10 +800,32 @@ export default function Settings() {
   const onSave = async () => {
     if (!isAdmin) return
     if (!validateDraft()) return
+    const enabledRoutes = new Set(
+      draft.apps.filter((app) => app.kind === 'route' && app.enabled).map((app) => app.route),
+    )
+    const fallbackRoute = enabledRoutes.has('/dashboard') ? '/dashboard' : enabledRoutes.values().next().value || '/dashboard'
+    const adjustedDefaultAfterLogin = enabledRoutes.has(draft.routes.defaultAfterLogin)
+      ? draft.routes.defaultAfterLogin
+      : fallbackRoute
+    const adjustedDefaultApp = enabledRoutes.has(draft.routes.defaultApp) ? draft.routes.defaultApp : fallbackRoute
+
+    const nextDraft = {
+      ...draft,
+      routes: {
+        defaultAfterLogin: adjustedDefaultAfterLogin,
+        defaultApp: adjustedDefaultApp,
+      },
+    }
     setSaving(true)
     try {
-      updateSettings(cloneSettings(draft))
+      updateSettings(cloneSettings(nextDraft))
       toast.success('Settings saved')
+      if (
+        adjustedDefaultAfterLogin !== draft.routes.defaultAfterLogin ||
+        adjustedDefaultApp !== draft.routes.defaultApp
+      ) {
+        toast.info('Default routes updated to match available apps')
+      }
     } catch (err) {
       toast.error('Failed to save settings')
     } finally {
