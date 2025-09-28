@@ -41,7 +41,7 @@ This file gives agents working in this repo the context and conventions needed t
 - Security/CSP: if embedding new tools, update `staticwebapp.config.json` `Content-Security-Policy` for `connect-src` and `frame-src`. Avoid weakening other directives.
 - Secrets: never commit secrets. Azure token is set via GitHub Actions secrets (`AZURE_STATIC_WEB_APPS_API_TOKEN`).
 - Authentication: Azure AD (Entra ID) SSO configuration is stored in Settings → Single Sign-On. Keep client secrets out of the repo; use SPA app registrations with PKCE.
-- Apps: Settings → Apps now manages only link-based entries (label, URL, icon, visibility). The shell always embeds the URL inside an iframe with the pill menu visible.
+- Apps: Settings → Apps now manages only link-based entries (label, URL, icon/optional custom image, visibility). The shell always embeds the URL inside an iframe with the pill menu visible.
 
 ## Deployment
 - CI uses GitHub Actions to build (`npm ci && npm run build`) and deploy `dist/` to Azure SWA. See README and workflows under `.github/workflows`.

@@ -76,7 +76,16 @@ export default function PillMenu({
 
     const apps = (appSettings?.apps || []).filter((app) => app.enabled && (!app.adminOnly || isAdmin))
     apps.forEach((config) => {
-      items.push({ type: 'app', config, icon: resolveIcon(config.icon) })
+      const iconNode = config.iconImage ? (
+        <img
+          src={config.iconImage}
+          alt=""
+          style={{ width: 18, height: 18, objectFit: 'contain' }}
+        />
+      ) : (
+        resolveIcon(config.icon)
+      )
+      items.push({ type: 'app', config, icon: iconNode })
     })
 
     items.push({ type: 'logout', label: 'Logout', icon: <FiLogOut size={18} /> })

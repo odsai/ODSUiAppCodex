@@ -78,7 +78,11 @@ const AppsTab = ({
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-slate-50 text-slate-700">
-                  {resolveIcon(app.icon, 18)}
+                  {app.iconImage ? (
+                    <img src={app.iconImage} alt="" className="h-6 w-6 object-contain" />
+                  ) : (
+                    resolveIcon(app.icon, 18)
+                  )}
                 </div>
                 <div>
                   <h3 className="text-base font-semibold">{app.label}</h3>
@@ -153,6 +157,29 @@ const AppsTab = ({
                       </option>
                     ))}
                   </select>
+                  <label className="block text-sm font-medium">Custom icon upload (optional)</label>
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/svg+xml"
+                    className="mt-1 w-full text-sm"
+                    onChange={async (e) => {
+                      if (!e.target.files?.[0]) return
+                      const dataUrl = await readFileAsDataUrl(e.target.files[0])
+                      handleUpdate(app.id, (prev) => ({ ...prev, iconImage: dataUrl }))
+                    }}
+                  />
+                  {app.iconImage && (
+                    <div className="mt-2 flex items-center gap-3">
+                      <img src={app.iconImage} alt="Icon preview" className="h-10 w-10 rounded border" />
+                      <button
+                        type="button"
+                        className="text-sm text-red-500"
+                        onClick={() => handleUpdate(app.id, (prev) => ({ ...prev, iconImage: undefined }))}
+                      >
+                        Remove custom icon
+                      </button>
+                    </div>
+                  )}
                   <p className="text-xs text-slate-500">
                     Provide a link to open inside the shell. Leave blank to show a placeholder message.
                   </p>
@@ -784,10 +811,10 @@ export default function Settings() {
           className="rounded border px-4 py-2"
           onClick={() => {
             setDraft(cloneSettings(appSettings))
-            toast.info('Changes reset to last saved values')
+            toast.info('Changes reverted to last saved values')
           }}
         >
-          Reset
+          Revert changes
         </button>
       </div>
     </div>

@@ -48,6 +48,7 @@ export type AppConfig = {
   label: string
   description?: string
   icon: string
+  iconImage?: string | null
   enabled: boolean
   adminOnly?: boolean
   url: string
@@ -142,12 +143,13 @@ const normalizeAppConfig = (input: unknown): AppConfig => {
   const id = typeof data.id === 'string' && data.id ? data.id : generateAppId()
   const label = typeof data.label === 'string' && data.label ? data.label : 'App'
   const icon = typeof data.icon === 'string' && data.icon ? data.icon : 'FiGrid'
+  const iconImage = typeof data.iconImage === 'string' ? data.iconImage : undefined
   const description = typeof data.description === 'string' ? (data.description as string) : undefined
   const enabled = data.enabled !== undefined ? !!data.enabled : true
   const adminOnly = data.adminOnly !== undefined ? !!data.adminOnly : false
   const url = typeof data.url === 'string' ? data.url : ''
 
-  return { id, label, description, icon, enabled, adminOnly, url }
+  return { id, label, description, icon, iconImage, enabled, adminOnly, url }
 }
 
 const normalizeAuthConfig = (input: unknown): AuthConfig => {

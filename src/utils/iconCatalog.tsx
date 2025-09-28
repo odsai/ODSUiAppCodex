@@ -59,6 +59,15 @@ export const ICON_OPTIONS = Object.keys(ICON_CATALOG).map((key) => ({
 }))
 
 export const resolveIcon = (iconKey: string, size = 18) => {
+  if (iconKey && iconKey.startsWith('data:')) {
+    return (
+      <img
+        src={iconKey}
+        alt=""
+        style={{ width: size, height: size, objectFit: 'contain' }}
+      />
+    )
+  }
   const IconComponent = ICON_CATALOG[iconKey] || FiGrid
   return <IconComponent size={size} />
 }
