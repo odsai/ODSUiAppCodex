@@ -1,6 +1,6 @@
 How To Use This Document — Strict Guide
 
-Current Version: v0.2.3
+Current Version: v0.2.4
 Repository: https://github.com/odsai/ODSUiAppCodex
 
 Purpose
@@ -46,6 +46,7 @@ Gold Standard Principles
 - Security‑first by design; privacy‑preserving
 - Efficient and performant; costs observable and controlled
 - Scalable architecture; graceful degradation
+- Scale-ready playbook: 1M-user load, Azure-native elasticity, observability, and automated failover rehearsed via load/chaos tests
 - No patchwork; no compromises; favor root‑cause fixes
 - Inventive, innovative, creative within safe bounds
 
@@ -319,11 +320,12 @@ Change Control
  - Versioning: Use SemVer (vMAJOR.MINOR.PATCH). Bump PATCH for clarifications/docs-only, MINOR for new features/sections, MAJOR for breaking reshuffles.
 
 Changelog
-- 2025-09-25 (v0.1.0): Initialize Truth Document (vNext): dashboard-first flow, Projects/Courses, pill menu post-sign-in, hash routes, state model, data models, UI/UX, security, testing, acceptance criteria.
-- 2025-09-25 (v0.2.0): Add Admin Settings: admin-only card, Settings sections (Links, Routes, Appearance, Courses), store actions (`updateSettings`, `addCourse`), access gating.
-- 2025-09-25 (v0.2.1): CSP/Preview: added CSP guidance (frame/connect-src) and removed X-Frame-Options; README local preview instructions.
+- 2025-09-26 (v0.2.4): Strengthened Gold Standard with enterprise scale-readiness (1M-user load, Azure elasticity) and bumped version.
 - 2025-09-25 (v0.2.3): Added Gold Standard Principles and Garvin’s 8 Dimensions; defined evaluation gates in CI/PR.
 - 2025-09-25 (v0.2.2): Doc governance: moved How To Use section to top with Current Version; seeded all Proposed subsections with industry-standard bullets.
+- 2025-09-25 (v0.2.1): CSP/Preview: added CSP guidance (frame/connect-src) and removed X-Frame-Options; README local preview instructions.
+- 2025-09-25 (v0.2.0): Add Admin Settings: admin-only card, Settings sections (Links, Routes, Appearance, Courses), store actions (`updateSettings`, `addCourse`), access gating.
+- 2025-09-25 (v0.1.0): Initialize Truth Document (vNext): dashboard-first flow, Projects/Courses, pill menu post-sign-in, hash routes, state model, data models, UI/UX, security, testing, acceptance criteria.
 
 Extensible Sections (Stubs)
 - Use these placeholders to capture proposals. Move items to “Approved” only after sign-off. Keep entries concise and actionable.
