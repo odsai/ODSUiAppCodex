@@ -191,7 +191,8 @@ export default function PillMenu({
     }
   }
 
-  const effective = pinMode === 'open' || (pinMode === 'none' && hovering)
+  const effective =
+    pinMode === 'open' || ((pinMode === 'none' || pinMode === 'closed') && hovering)
   const onSideLeft = typeof window !== 'undefined' ? pos.x <= window.innerWidth / 2 : true
   const closedTranslateClass = openUp ? 'translate-y-2' : '-translate-y-2'
 
