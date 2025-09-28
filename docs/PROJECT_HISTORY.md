@@ -6,3 +6,4 @@
 - 2025-09-26: Reworked admin settings with tabbed interface (Apps, Branding, Behavior), dynamic tool configuration, theme customization (palettes, uploads), and tied pill menu to configurable apps.
 - 2025-09-26: Added stricter ESLint setup (TypeScript + React hooks) and resolved legacy warnings to keep the repo gold-standard clean.
 - 2025-09-26: Introduced Azure AD SSO configuration (Settings → Single Sign-On) and MSAL-based login/logout with fallback mock auth.
+- 2025-09-26: Simplified app configuration to link-only entries (no internal route selectors) and refreshed the pill menu to always embed URLs.

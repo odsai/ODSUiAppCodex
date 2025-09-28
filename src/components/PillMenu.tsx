@@ -13,6 +13,7 @@ const clampToViewport = (x: number, y: number, w: number, h: number, pad = 8) =>
 }
 
 type MenuItem =
+  | { type: 'builtin'; id: 'dashboard' | 'settings'; label: string; icon: React.ReactNode; action: () => void }
   | { type: 'app'; config: AppConfig; icon: React.ReactNode }
   | { type: 'logout'; label: string; icon: React.ReactNode }
 
@@ -49,12 +50,37 @@ export default function PillMenu({
   const TH = 5
 
   const resolvedItems: MenuItem[] = React.useMemo(() => {
-    const base = (appSettings?.apps || [])
-      .filter((app) => app.enabled && (!app.adminOnly || isAdmin))
-      .map((config) => ({ type: 'app', config, icon: resolveIcon(config.icon) }) as MenuItem)
-    base.push({ type: 'logout', label: 'Logout', icon: <FiLogOut size={18} /> })
-    return base
-  }, [appSettings?.apps, isAdmin])
+    const items: MenuItem[] = [
+      {
+        type: 'builtin',
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: resolveIcon('FiHome', 18),
+        action: () => {
+          onDashboard()
+          setRoute('/dashboard')
+        },
+      },
+    ]
+
+    if (isAdmin) {
+      items.push({
+        type: 'builtin',
+        id: 'settings',
+        label: 'Settings',
+        icon: resolveIcon('FiSettings', 18),
+        action: () => setRoute('/settings'),
+      })
+    }
+
+    const apps = (appSettings?.apps || []).filter((app) => app.enabled && (!app.adminOnly || isAdmin))
+    apps.forEach((config) => {
+      items.push({ type: 'app', config, icon: resolveIcon(config.icon) })
+    })
+
+    items.push({ type: 'logout', label: 'Logout', icon: <FiLogOut size={18} /> })
+    return items
+  }, [appSettings?.apps, isAdmin, onDashboard, setRoute])
 
   const stackH = PILLPAD * 2 + resolvedItems.length * ITEMS + (resolvedItems.length - 1) * GAP
   const stackOffset = stackH + 8
@@ -212,33 +238,44 @@ export default function PillMenu({
           >
             {resolvedItems.map((item) => (
               <div
-                key={item.type === 'app' ? item.config.id : 'logout'}
+                key={
+                  item.type === 'app'
+                    ? item.config.id
+                    : item.type === 'builtin'
+                    ? `builtin-${item.id}`
+                    : 'logout'
+                }
                 className="group relative grid place-items-center"
               >
                 <button
                   role="menuitem"
-                  aria-label={item.type === 'app' ? item.config.label : item.label}
+                  aria-label={
+                    item.type === 'app' ? item.config.label : item.type === 'builtin' ? item.label : item.label
+                  }
                   tabIndex={effective ? 0 : -1}
                   onClick={() => {
                     if (item.type === 'app') {
-                      // If a tool link exists, always open inside the shell at /app?id=...
                       if (item.config.url) {
                         const id = item.config.id
-                        if (id) window.location.hash = `/app?id=${encodeURIComponent(id)}`
-                      } else if (item.config.kind === 'route') {
-                        if (item.config.route === '/dashboard') onDashboard()
-                        else setRoute(item.config.route)
+                        window.location.hash = `/app?id=${encodeURIComponent(id)}`
+                      } else {
+                        toast.error('No link configured. Edit the app in Settings → Apps.')
                       }
                       setPinMode('open')
+                    } else if (item.type === 'builtin') {
+                      item.action()
+                      setPinMode('closed')
                     } else handleLogout()
                   }}
                   className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-colors duration-150 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand ${
-                    item.type === 'app' && item.config.kind === 'route' && currentRoute === item.config.route
+                    item.type === 'builtin' &&
+                    ((item.id === 'dashboard' && currentRoute === '/dashboard') ||
+                      (item.id === 'settings' && currentRoute === '/settings'))
                       ? 'border-brand bg-brand text-white'
                       : 'bg-white'
                   }`}
                 >
-                  {item.type === 'app' ? item.icon : item.icon}
+                  {item.icon}
                 </button>
                 <span
                   className="pointer-events-none absolute whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-xs text-white opacity-0 shadow transition-opacity duration-150 group-hover:opacity-100"

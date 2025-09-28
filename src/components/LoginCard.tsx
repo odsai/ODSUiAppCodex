@@ -37,8 +37,8 @@ export default function LoginCard({ onClose }: { onClose?: () => void }) {
       }
       toast.success('Signed in successfully')
       onClose?.()
-      const next = appSettings.routes?.defaultAfterLogin || '/dashboard'
-      setRoute(next)
+      const nextRoute = '/dashboard'
+      setRoute(nextRoute)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed'
       setError(msg)

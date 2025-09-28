@@ -1,15 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import {
-  useAppStore,
-  type AppConfig,
-  type AppSettings,
-  type ColorPalette,
-  type Route,
-} from '../store/appStore'
+import { useAppStore, type AppConfig, type AppSettings, type ColorPalette } from '../store/appStore'
 import { toast } from '../store/toastStore'
 import { ICON_OPTIONS, resolveIcon } from '../utils/iconCatalog'
 
-const ROUTE_OPTIONS: Route[] = ['/dashboard', '/ai', '/penpot', '/flowise', '/excalidraw', '/comfyui', '/groups', '/settings']
 const PROTECTED_APP_IDS = new Set(['app-dashboard', 'app-settings'])
 
 const cloneSettings = (settings: AppSettings): AppSettings =>
@@ -27,12 +20,11 @@ const isValidUrl = (value?: string) => {
   }
 }
 
-type TabId = 'apps' | 'branding' | 'behavior' | 'auth'
+type TabId = 'apps' | 'branding' | 'auth'
 
 const Tabs: { id: TabId; label: string }[] = [
   { id: 'apps', label: 'Apps' },
   { id: 'branding', label: 'Branding & Theme' },
-  { id: 'behavior', label: 'Behavior' },
   { id: 'auth', label: 'Single Sign-On' },
 ]
 
@@ -47,39 +39,18 @@ const readFileAsDataUrl = async (file: File) =>
 const AppsTab = ({
   apps,
   onChange,
+  allowSelfEnroll,
+  onToggleAllowSelfEnroll,
 }: {
   apps: AppConfig[]
   onChange: (next: AppConfig[]) => void
+  allowSelfEnroll: boolean
+  onToggleAllowSelfEnroll: (value: boolean) => void
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const handleUpdate = (id: string, updater: (app: AppConfig) => AppConfig) => {
     onChange(apps.map((app) => (app.id === id ? updater(app) : app)))
-  }
-
-  const handleKindChange = (id: string, kind: 'route' | 'external') => {
-    handleUpdate(id, (app) => {
-      if (kind === app.kind) return app
-      if (kind === 'route') {
-        const routeValue: Route = app.kind === 'route' ? app.route : '/dashboard'
-        return {
-          ...app,
-          kind: 'route',
-          route: routeValue,
-          url: app.url || '',
-        }
-      }
-      return {
-        id: app.id,
-        label: app.label,
-        description: app.description,
-        icon: app.icon,
-        enabled: app.enabled,
-        adminOnly: app.adminOnly,
-        kind: 'external',
-        url: app.url || '',
-      }
-    })
   }
 
   const handleRemove = (id: string) => {
@@ -111,7 +82,7 @@ const AppsTab = ({
                 </div>
                 <div>
                   <h3 className="text-base font-semibold">{app.label}</h3>
-                  <p className="text-xs text-slate-500 uppercase tracking-wide">{app.kind === 'route' ? app.route : 'External link'}</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">{app.url ? app.url : 'No link configured'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -182,42 +153,10 @@ const AppsTab = ({
                       </option>
                     ))}
                   </select>
-                  <label className="block text-sm font-medium">Open mode</label>
-                  <select
-                    className="w-full rounded border px-3 py-2"
-                    value={app.kind}
-                    onChange={(e) => handleKindChange(app.id, e.target.value as 'route' | 'external')}
-                  >
-                    <option value="external">Open inside shell (iframe)</option>
-                    <option value="route">Navigate to internal view</option>
-                  </select>
                   <p className="text-xs text-slate-500">
-                    Use the Open inside shell option for any URL you want to embed; choose Navigate only if this app
-                    maps to a built-in ODSUi view.
+                    Provide a link to open inside the shell. Leave blank to show a placeholder message.
                   </p>
                 </div>
-
-                {app.kind === 'route' && (
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium">Destination route</label>
-                    <select
-                      className="w-full rounded border px-3 py-2"
-                      value={app.route}
-                      onChange={(e) =>
-                        handleUpdate(app.id, (prev) => ({
-                          ...prev,
-                          route: e.target.value as Route,
-                        }))
-                      }
-                    >
-                      {ROUTE_OPTIONS.map((route) => (
-                        <option key={route} value={route}>
-                          {route}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 <div className="space-y-3">
                   <label className="block text-sm font-medium">Tool link</label>
@@ -272,7 +211,6 @@ const AppsTab = ({
             enabled: true,
             adminOnly: false,
             url: '',
-            kind: 'external',
           }
           onChange([...apps, newApp])
           setExpandedId(newApp.id)
@@ -280,6 +218,17 @@ const AppsTab = ({
       >
         + Add app
       </button>
+      <section className="rounded-xl border bg-white p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700">Courses</h3>
+        <label className="mt-3 flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={allowSelfEnroll}
+            onChange={(e) => onToggleAllowSelfEnroll(e.target.checked)}
+          />
+          Allow course self-enrollment
+        </label>
+      </section>
     </div>
   )
 }
@@ -521,79 +470,6 @@ const BrandingTab = ({
   )
 }
 
-const BehaviorTab = ({
-  draft,
-  onChange,
-}: {
-  draft: AppSettings
-  onChange: (next: AppSettings) => void
-}) => {
-  return (
-    <div className="space-y-6">
-      <section className="rounded-xl border bg-white p-4 shadow-sm">
-        <h3 className="text-base font-semibold">Routing defaults</h3>
-        <div className="mt-3 grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium">Default after login</label>
-            <select
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={draft.routes.defaultAfterLogin}
-              onChange={(e) =>
-                onChange({
-                  ...draft,
-                  routes: { ...draft.routes, defaultAfterLogin: e.target.value as Route },
-                })
-              }
-            >
-              {ROUTE_OPTIONS.map((route) => (
-                <option key={route} value={route}>
-                  {route}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Default app</label>
-            <select
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={draft.routes.defaultApp}
-              onChange={(e) =>
-                onChange({
-                  ...draft,
-                  routes: { ...draft.routes, defaultApp: e.target.value as Route },
-                })
-              }
-            >
-              {ROUTE_OPTIONS.filter((route) => route !== '/settings' && route !== '/dashboard').map((route) => (
-                <option key={route} value={route}>
-                  {route}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-xl border bg-white p-4 shadow-sm">
-        <h3 className="text-base font-semibold">Courses</h3>
-        <label className="mt-3 flex items-center gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={draft.courses.allowSelfEnroll}
-            onChange={(e) =>
-              onChange({
-                ...draft,
-                courses: { ...draft.courses, allowSelfEnroll: e.target.checked },
-              })
-            }
-          />
-          Allow self-enrollment
-        </label>
-      </section>
-    </div>
-  )
-}
-
 const AuthTab = ({
   auth,
   onChange,
@@ -762,8 +638,6 @@ export default function Settings() {
   const updateSettings = useAppStore((s) => s.updateSettings)
   const setTheme = useAppStore((s) => s.setTheme)
   const theme = useAppStore((s) => s.theme)
-  const currentRoute = useAppStore((s) => s.route)
-  const setRoute = useAppStore((s) => s.setRoute)
 
   const [draft, setDraft] = useState<AppSettings>(() => cloneSettings(appSettings))
   const [activeTab, setActiveTab] = useState<TabId>('apps')
@@ -777,10 +651,7 @@ export default function Settings() {
     const errors: string[] = []
     draft.apps.forEach((app) => {
       if (!app.label.trim()) errors.push('Each app needs a name')
-      if (app.kind === 'route' && !app.route) errors.push(`${app.label} missing a route`)
-      if ((app.kind === 'external' || app.url) && app.url && !isValidUrl(app.url)) {
-        errors.push(`${app.label}: invalid link ${app.url}`)
-      }
+      if (app.url && !isValidUrl(app.url)) errors.push(`${app.label}: invalid link ${app.url}`)
     })
     if (!draft.appearance.palettes.length) {
       errors.push('At least one color palette is required')
@@ -804,68 +675,10 @@ export default function Settings() {
   const onSave = async () => {
     if (!isAdmin) return
     if (!validateDraft()) return
-    const enabledRoutes = new Set(
-      draft.apps.filter((app) => app.kind === 'route' && app.enabled).map((app) => app.route),
-    )
-    let fallbackRoute: Route = '/dashboard'
-    if (enabledRoutes.has('/dashboard')) fallbackRoute = '/dashboard'
-    else {
-      const first = enabledRoutes.values().next()
-      if (first && typeof first.value === 'string') fallbackRoute = first.value as Route
-    }
-    const adjustedDefaultAfterLogin = enabledRoutes.has(draft.routes.defaultAfterLogin)
-      ? draft.routes.defaultAfterLogin
-      : fallbackRoute
-    const adjustedDefaultApp = enabledRoutes.has(draft.routes.defaultApp) ? draft.routes.defaultApp : fallbackRoute
-
-    const nextDraft = {
-      ...draft,
-      routes: {
-        defaultAfterLogin: adjustedDefaultAfterLogin,
-        defaultApp: adjustedDefaultApp,
-      },
-    }
     setSaving(true)
     try {
-      updateSettings(cloneSettings(nextDraft))
+      updateSettings(cloneSettings(draft))
       toast.success('Settings saved')
-      if (
-        adjustedDefaultAfterLogin !== draft.routes.defaultAfterLogin ||
-        adjustedDefaultApp !== draft.routes.defaultApp
-      ) {
-        toast.info('Default routes updated to match available apps')
-      }
-
-      let redirectNeeded = false
-      if (!enabledRoutes.has(currentRoute) && currentRoute !== '/app') {
-        redirectNeeded = true
-      }
-
-      if (currentRoute === '/app') {
-        let currentAppId: string | null = null
-        if (typeof window !== 'undefined') {
-          const raw = window.location.hash.replace(/^#/, '')
-          const [, query = ''] = raw.split('?')
-          const params = new URLSearchParams(query)
-          currentAppId = params.get('id')
-        }
-        if (currentAppId) {
-          const matching = nextDraft.apps.find((app) => app.id === currentAppId)
-          if (!matching || !matching.enabled) {
-            redirectNeeded = true
-          }
-        } else {
-          redirectNeeded = true
-        }
-      }
-
-      if (redirectNeeded) {
-        const targetRoute = fallbackRoute || '/dashboard'
-        setRoute(targetRoute)
-        if (typeof window !== 'undefined' && targetRoute !== '/app') {
-          window.location.hash = `#${targetRoute}`
-        }
-      }
     } catch (err) {
       toast.error('Failed to save settings')
     } finally {
@@ -936,6 +749,10 @@ export default function Settings() {
         <AppsTab
           apps={draft.apps}
           onChange={(apps) => setDraft((prev) => ({ ...prev, apps }))}
+          allowSelfEnroll={draft.courses.allowSelfEnroll}
+          onToggleAllowSelfEnroll={(value) =>
+            setDraft((prev) => ({ ...prev, courses: { ...prev.courses, allowSelfEnroll: value } }))
+          }
         />
       )}
 
@@ -944,10 +761,6 @@ export default function Settings() {
           appearance={draft.appearance}
           onChange={(appearance) => setDraft((prev) => ({ ...prev, appearance }))}
         />
-      )}
-
-      {activeTab === 'behavior' && (
-        <BehaviorTab draft={draft} onChange={(next) => setDraft(next)} />
       )}
 
       {activeTab === 'auth' && (

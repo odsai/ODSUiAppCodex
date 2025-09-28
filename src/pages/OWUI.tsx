@@ -9,9 +9,7 @@ export default function OWUI(){
   const projects = useAppStore(s=>s.projects)
   const courses = useAppStore(s=>s.courses)
   const apps = useAppStore((s) => s.appSettings.apps)
-  const owuiConfig = useMemo(() =>
-    apps.find((app) => app.id === 'app-owui' || (app.kind === 'route' && app.route === '/ai')),
-  [apps])
+  const owuiConfig = useMemo(() => apps.find((app) => app.id === 'app-owui'), [apps])
   const owuiUrl = owuiConfig?.url || ''
   const project = projects.find(p=>p.id===activeProjectId)
   const course = courses.find(c=>c.id===activeCourseId)

@@ -5,9 +5,7 @@ import { toast } from '../store/toastStore'
 
 export default function ComfyUI(){
   const apps = useAppStore((s) => s.appSettings.apps)
-  const config = useMemo(() =>
-    apps.find((app) => app.id === 'app-comfyui' || (app.kind === 'route' && app.route === '/comfyui')),
-  [apps])
+  const config = useMemo(() => apps.find((app) => app.id === 'app-comfyui'), [apps])
   const url = config?.url
   const [offline, setOffline] = useState(false)
   useEffect(()=>{

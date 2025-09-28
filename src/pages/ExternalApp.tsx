@@ -39,15 +39,14 @@ export default function ExternalApp() {
   }
 
   const src = (app.url || '').trim()
-  if (!src && app.kind === 'route') {
+  if (!src) {
     return (
       <div className="mx-auto max-w-3xl mt-10 rounded border bg-white p-4 text-slate-700">
-        <h2 className="text-xl font-semibold">Internal app</h2>
-        <p className="mt-2 text-sm">This app is an internal route and no external link is configured. Use the pill menu to navigate.</p>
+        <h2 className="text-xl font-semibold">{app.label}</h2>
+        <p className="mt-2 text-sm">No link configured for this app. Provide one in Settings → Apps.</p>
       </div>
     )
   }
-
   return (
     <div className="relative h-screen w-screen">
       {src ? (

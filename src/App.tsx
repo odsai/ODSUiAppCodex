@@ -16,8 +16,7 @@ const App = () => {
   const route = useAppStore((s) => s.route)
   const signedIn = useAppStore((s) => s.signedIn)
   const theme = useAppStore((s) => s.theme)
-  const appSettings = useAppStore((s) => s.appSettings)
-  const appearance = appSettings.appearance
+  const appearance = useAppStore((s) => s.appSettings.appearance)
   const setRoute = useAppStore((s) => s.setRoute)
   const selectCourse = useAppStore((s) => s.selectCourse)
 
@@ -67,15 +66,6 @@ const App = () => {
         : `#${route}`
     if (window.location.hash !== want) window.location.hash = want
   }, [route])
-
-  // Default-after-login guard on hydrate and when signing in
-  useEffect(() => {
-    if (signedIn && route === '/dashboard') {
-      const next = appSettings?.routes?.defaultAfterLogin || '/dashboard'
-      if (next && next !== '/dashboard') setRoute(next)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn])
 
   // Apply dark class based on theme preference
   useEffect(() => {

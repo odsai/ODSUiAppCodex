@@ -5,9 +5,7 @@ import { toast } from '../store/toastStore'
 
 export default function Penpot(){
   const apps = useAppStore((s) => s.appSettings.apps)
-  const config = useMemo(() =>
-    apps.find((app) => app.id === 'app-penpot' || (app.kind === 'route' && app.route === '/penpot')),
-  [apps])
+  const config = useMemo(() => apps.find((app) => app.id === 'app-penpot'), [apps])
   const url = config?.url
   const [offline, setOffline] = useState(false)
   useEffect(()=>{

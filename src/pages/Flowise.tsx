@@ -5,9 +5,7 @@ import { toast } from '../store/toastStore'
 
 export default function Flowise(){
   const apps = useAppStore((s) => s.appSettings.apps)
-  const config = useMemo(() =>
-    apps.find((app) => app.id === 'app-flowise' || (app.kind === 'route' && app.route === '/flowise')),
-  [apps])
+  const config = useMemo(() => apps.find((app) => app.id === 'app-flowise'), [apps])
   const url = config?.url
   const [offline, setOffline] = useState(false)
   useEffect(()=>{

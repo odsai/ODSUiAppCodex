@@ -2,7 +2,17 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { azureLogin, azureLogout, acquireAzureToken } from '../utils/authClient'
 
-export type Route = '/dashboard' | '/ai' | '/penpot' | '/flowise' | '/excalidraw' | '/comfyui' | '/groups' | '/settings' | '/login' | '/app'
+export type Route =
+  | '/dashboard'
+  | '/ai'
+  | '/penpot'
+  | '/flowise'
+  | '/excalidraw'
+  | '/comfyui'
+  | '/groups'
+  | '/settings'
+  | '/login'
+  | '/app'
 
 export type User = {
   id: string
@@ -33,16 +43,6 @@ export type ColorPalette = {
   accent: string
 }
 
-type RouteAppConfig = {
-  kind: 'route'
-  route: Route
-}
-
-type ExternalAppConfig = {
-  kind: 'external'
-  url: string
-}
-
 export type AppConfig = {
   id: string
   label: string
@@ -50,8 +50,8 @@ export type AppConfig = {
   icon: string
   enabled: boolean
   adminOnly?: boolean
-  url?: string
-} & (RouteAppConfig | ExternalAppConfig)
+  url: string
+}
 
 export type AuthConfig = {
   provider: 'azure-ad'
@@ -67,7 +67,6 @@ export type AuthConfig = {
 
 export type AppSettings = {
   apps: AppConfig[]
-  routes: { defaultAfterLogin: Route; defaultApp: Route }
   appearance: {
     theme: 'light' | 'dark' | 'system'
     brandColor: string
@@ -86,30 +85,7 @@ export type AppSettings = {
   updatedBy?: string
 }
 
-const ROUTE_CHOICES: Route[] = [
-  '/dashboard',
-  '/ai',
-  '/penpot',
-  '/flowise',
-  '/excalidraw',
-  '/comfyui',
-  '/groups',
-  '/settings',
-  '/login',
-]
-
-const BASE_APPS: AppConfig[] = [
-  { id: 'app-dashboard', label: 'Dashboard', icon: 'FiHome', enabled: true, kind: 'route', route: '/dashboard' },
-  { id: 'app-owui', label: 'OWUI', icon: 'FiCpu', enabled: true, kind: 'route', route: '/ai', url: '' },
-  { id: 'app-penpot', label: 'Penpot', icon: 'FiFeather', enabled: true, kind: 'route', route: '/penpot', url: '' },
-  { id: 'app-flowise', label: 'Flowise', icon: 'FiActivity', enabled: true, kind: 'route', route: '/flowise', url: '' },
-  { id: 'app-excalidraw', label: 'Excalidraw', icon: 'FiEdit3', enabled: true, kind: 'route', route: '/excalidraw', url: '' },
-  { id: 'app-comfyui', label: 'ComfyUI', icon: 'FiLayout', enabled: true, kind: 'route', route: '/comfyui', url: '' },
-  { id: 'app-groups', label: 'Groups', icon: 'FiUsers', enabled: true, kind: 'route', route: '/groups', url: '' },
-  { id: 'app-settings', label: 'Settings', icon: 'FiSettings', enabled: true, adminOnly: true, kind: 'route', route: '/settings' },
-]
-
-const BASE_APP_MAP = new Map(BASE_APPS.map((app) => [app.id, app]))
+const BASE_APPS: AppConfig[] = []
 
 const BASE_PALETTES: ColorPalette[] = [
   { id: 'palette-classic', name: 'Classic Red', primary: '#B13634', secondary: '#1F2937', accent: '#F59E0B' },
@@ -153,29 +129,15 @@ const normalizePalette = (palette: unknown, fallback: ColorPalette, index: numbe
 
 const normalizeAppConfig = (input: unknown): AppConfig => {
   const data: Record<string, unknown> = isRecord(input) ? input : {}
-  const fallback = typeof data.id === 'string' ? BASE_APP_MAP.get(data.id) : undefined
-  const id = typeof data.id === 'string' && data.id ? data.id : fallback?.id ?? generateAppId()
-  const label = typeof data.label === 'string' && data.label ? data.label : fallback?.label ?? 'App'
-  const icon = typeof data.icon === 'string' && data.icon ? data.icon : fallback?.icon ?? 'FiGrid'
-  const description = typeof data.description === 'string' ? (data.description as string) : fallback?.description
-  const enabled = data.enabled !== undefined ? !!data.enabled : fallback?.enabled ?? true
-  const adminOnly = data.adminOnly !== undefined ? !!data.adminOnly : fallback?.adminOnly ?? false
-  const kind: 'route' | 'external' =
-    data.kind === 'external' || data.kind === 'route' ? (data.kind as 'route' | 'external') : fallback?.kind ?? 'route'
-  const url = typeof data.url === 'string' ? (data.url as string) : fallback?.url ?? ''
+  const id = typeof data.id === 'string' && data.id ? data.id : generateAppId()
+  const label = typeof data.label === 'string' && data.label ? data.label : 'App'
+  const icon = typeof data.icon === 'string' && data.icon ? data.icon : 'FiGrid'
+  const description = typeof data.description === 'string' ? (data.description as string) : undefined
+  const enabled = data.enabled !== undefined ? !!data.enabled : true
+  const adminOnly = data.adminOnly !== undefined ? !!data.adminOnly : false
+  const url = typeof data.url === 'string' ? data.url : ''
 
-  if (kind === 'external') {
-    return { id, label, description, icon, enabled, adminOnly, kind: 'external', url }
-  }
-
-  const routeCandidate = data.route
-  const route: Route = ROUTE_CHOICES.includes(routeCandidate as Route)
-    ? (routeCandidate as Route)
-    : fallback?.kind === 'route'
-    ? fallback.route
-    : '/dashboard'
-
-  return { id, label, description, icon, enabled, adminOnly, kind: 'route', route, url }
+  return { id, label, description, icon, enabled, adminOnly, url }
 }
 
 const normalizeAuthConfig = (input: unknown): AuthConfig => {
@@ -222,7 +184,6 @@ const createDefaultAppSettings = (): AppSettings => {
   const palettes = cloneBasePalettes()
   return {
     apps: cloneBaseApps(),
-    routes: { defaultAfterLogin: '/dashboard', defaultApp: '/ai' },
     appearance: {
       theme: 'system',
       brandColor: palettes[0]?.primary ?? '#B13634',
@@ -241,19 +202,6 @@ const createDefaultAppSettings = (): AppSettings => {
 const normalizeAppSettings = (incoming: unknown): AppSettings => {
   const record: Record<string, unknown> = isRecord(incoming) ? incoming : {}
   const defaults = createDefaultAppSettings()
-
-  const normalizedRoutes = {
-    defaultAfterLogin: ROUTE_CHOICES.includes(
-      isRecord(record.routes) ? (record.routes.defaultAfterLogin as Route) : undefined,
-    )
-      ? ((record.routes as Record<string, unknown>).defaultAfterLogin as Route)
-      : defaults.routes.defaultAfterLogin,
-    defaultApp: ROUTE_CHOICES.includes(
-      isRecord(record.routes) ? (record.routes.defaultApp as Route) : undefined,
-    )
-      ? ((record.routes as Record<string, unknown>).defaultApp as Route)
-      : defaults.routes.defaultApp,
-  }
 
   let apps: AppConfig[]
   if (Array.isArray(record.apps) && record.apps.length) {
@@ -308,7 +256,6 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
 
   return {
     apps,
-    routes: normalizedRoutes,
     appearance: {
       theme,
       brandColor,
@@ -441,7 +388,7 @@ export const useAppStore = create<AppState>()(
 
             const token = loginResult.accessToken || silentToken?.accessToken || loginResult.idToken || undefined
 
-            set({ signedIn: true, user, token, loginOpen: false })
+            set({ signedIn: true, user, token, loginOpen: false, route: '/dashboard' })
             return
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Azure SSO login failed'
@@ -461,7 +408,7 @@ export const useAppStore = create<AppState>()(
           email,
           roles: isAdmin ? ['admin'] : ['user'],
         }
-        set({ signedIn: true, user: fallbackUser, token: 'mock', loginOpen: false })
+        set({ signedIn: true, user: fallbackUser, token: 'mock', loginOpen: false, route: '/dashboard' })
       },
 
       logout: () => {
@@ -488,7 +435,6 @@ export const useAppStore = create<AppState>()(
         const merged = {
           ...current,
           ...patch,
-          routes: { ...current.routes, ...patch?.routes },
           appearance: { ...current.appearance, ...patch?.appearance },
           courses: { ...current.courses, ...patch?.courses },
           apps: patch?.apps ?? current.apps,
