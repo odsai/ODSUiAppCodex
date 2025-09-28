@@ -13,6 +13,10 @@ export type Route =
   | '/settings'
   | '/login'
   | '/app'
+  | '/lms/dashboard'
+  | '/lms/courses'
+  | '/lms/course'
+  | '/lms/lesson'
 
 export type User = {
   id: string

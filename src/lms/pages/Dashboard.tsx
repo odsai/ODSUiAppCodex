@@ -1,11 +1,27 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useLmsStore } from '../store/lmsStore'
+import { useAppStore, type Route } from '../../store/appStore'
+import { getCourses } from '../api/courses'
 
 const LmsDashboard = () => {
   const courses = useLmsStore((s) => s.courses)
   const limit = useLmsStore((s) => s.settings.recentCoursesLimit)
 
   const visible = courses.slice(0, limit)
+  const setRoute = useAppStore((s) => s.setRoute)
+  const setCourses = useLmsStore((s) => s.setCourses)
+  const lms = useAppStore((s) => s.appSettings.lms)
+
+  useEffect(() => {
+    if (!lms.apiBaseUrl) return
+    let cancelled = false
+    getCourses(lms.apiBaseUrl).then((list) => {
+      if (!cancelled && list.length) setCourses(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [lms.apiBaseUrl, setCourses])
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -37,10 +53,28 @@ const LmsDashboard = () => {
                 <p className="mt-2 text-xs text-slate-500">
                   Last updated {new Date(course.updatedAt).toLocaleDateString()}
                 </p>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    className="rounded border px-3 py-1 text-sm"
+                    onClick={() => {
+                      const url = new URL(window.location.href)
+                      url.hash = '/lms/course?id=' + encodeURIComponent(course.id)
+                      window.location.href = url.toString()
+                      setRoute('/lms/course' as Route)
+                    }}
+                  >
+                    Open
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
+        <div className="mt-6 flex justify-end">
+          <button className="rounded border px-4 py-2 text-sm" onClick={() => setRoute('/lms/courses' as Route)}>
+            Browse all courses
+          </button>
+        </div>
       </section>
     </div>
   )

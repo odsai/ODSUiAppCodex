@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import PillMenu from './components/PillMenu'
+import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import OWUI from './pages/OWUI'
 import Penpot from './pages/Penpot'
@@ -10,6 +11,7 @@ import Groups from './pages/Groups'
 import Settings from './pages/Settings'
 import ExternalApp from './pages/ExternalApp'
 import LmsDashboard from './lms/pages/Dashboard'
+import { Courses as LmsCourses, CourseDetail as LmsCourseDetail, LessonPlayer as LmsLessonPlayer } from './lms/pages'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
 
@@ -27,7 +29,22 @@ const App = () => {
       const raw = (window.location.hash || '').replace(/^#/, '')
       const [pathOnly, query = ''] = raw.split('?')
       const params = new URLSearchParams(query)
-      const valid: Route[] = ['/dashboard', '/ai', '/penpot', '/flowise', '/excalidraw', '/comfyui', '/groups', '/settings', '/login', '/app']
+      const valid: Route[] = [
+        '/dashboard',
+        '/ai',
+        '/penpot',
+        '/flowise',
+        '/excalidraw',
+        '/comfyui',
+        '/groups',
+        '/settings',
+        '/login',
+        '/app',
+        '/lms/dashboard',
+        '/lms/courses',
+        '/lms/course',
+        '/lms/lesson',
+      ]
       const path = valid.includes(pathOnly as Route) ? (pathOnly as Route) : '/dashboard'
       return { path, params }
     }
@@ -61,10 +78,8 @@ const App = () => {
   useEffect(() => {
     const current = window.location.hash.replace(/^#/, '')
     const [curPath, curQuery = ''] = current.split('?')
-    const want =
-      (route === '/ai' && curPath === '/ai' && curQuery) || (route === '/app' && curPath === '/app' && curQuery)
-        ? `#${curPath}?${curQuery}`
-        : `#${route}`
+    const preserve = new Set(['/ai', '/app', '/lms/course', '/lms/lesson'])
+    const want = preserve.has(route) && curPath === route && curQuery ? `#${curPath}?${curQuery}` : `#${route}`
     if (window.location.hash !== want) window.location.hash = want
   }, [route])
 
@@ -96,6 +111,9 @@ const App = () => {
     case '/groups': page = <Groups />; break
     case '/settings': page = <Settings />; break
     case '/lms/dashboard': page = <LmsDashboard />; break
+    case '/lms/courses': page = <LmsCourses />; break
+    case '/lms/course': page = <LmsCourseDetail />; break
+    case '/lms/lesson': page = <LmsLessonPlayer />; break
     case '/app': page = <ExternalApp />; break
     case '/dashboard': page = <Dashboard />; break
     default: page = <OWUI />
@@ -105,7 +123,10 @@ const App = () => {
     <>
       <a href="#main" className="skip-link">Skip to content</a>
       <main id="main" className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'}`}>
-      {page}
+      {/* Error boundary helps avoid blank screens on unexpected render errors */}
+      <ErrorBoundary>
+        {page}
+      </ErrorBoundary>
       {/* Floating pill menu appears only after sign-in */}
       {signedIn && (
         <PillMenu setRoute={(r: Route) => setRoute(r)} onDashboard={() => setRoute('/dashboard')} />

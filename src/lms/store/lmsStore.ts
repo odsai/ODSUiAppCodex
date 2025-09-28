@@ -1,14 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-export type LmsCourseSummary = {
-  id: string
-  title: string
-  description?: string
-  progress: number
-  thumbnailUrl?: string
-  updatedAt: string
-}
+import type { LmsCourse, LmsCourseSummary } from '../types'
+import { SAMPLE_COURSE_MAP, SAMPLE_COURSE_SUMMARIES } from '../sampleData'
 
 export type LmsSettingsState = {
   recentCoursesLimit: number
@@ -16,24 +9,36 @@ export type LmsSettingsState = {
 
 export type LmsState = {
   courses: LmsCourseSummary[]
+  courseMap: Record<string, LmsCourse>
   settings: LmsSettingsState
   setCourses: (courses: LmsCourseSummary[]) => void
+  setCourse: (course: LmsCourse, aliasId?: string) => void
   setSettings: (patch: Partial<LmsSettingsState>) => void
 }
 
-const useLmsStoreBase = create<LmsState>((set) => ({
-  courses: [],
-  settings: {
-    recentCoursesLimit: 6,
-  },
-  setCourses: (courses) => set({ courses }),
-  setSettings: (patch) =>
-    set((state) => ({
-      settings: { ...state.settings, ...patch },
-    })),
-}))
-
-export const useLmsStore = persist(useLmsStoreBase, {
-  name: 'odsui-lms',
-  partialize: (state) => ({ settings: state.settings }),
-})
+export const useLmsStore = create<LmsState>()(
+  persist(
+    (set) => ({
+      courses: SAMPLE_COURSE_SUMMARIES,
+      courseMap: { ...SAMPLE_COURSE_MAP },
+      settings: {
+        recentCoursesLimit: 6,
+      },
+      setCourses: (courses) => set({ courses }),
+      setCourse: (course, aliasId) =>
+        set((state) => ({
+          courseMap: aliasId && aliasId !== course.id
+            ? { ...state.courseMap, [course.id]: course, [aliasId]: course }
+            : { ...state.courseMap, [course.id]: course },
+        })),
+      setSettings: (patch) =>
+        set((state) => ({
+          settings: { ...state.settings, ...patch },
+        })),
+    }),
+    {
+      name: 'odsui-lms',
+      partialize: (state) => ({ settings: state.settings }),
+    },
+  ),
+)

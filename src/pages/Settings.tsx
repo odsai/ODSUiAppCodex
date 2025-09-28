@@ -20,11 +20,12 @@ const isValidUrl = (value?: string) => {
   }
 }
 
-type TabId = 'apps' | 'branding' | 'auth'
+type TabId = 'apps' | 'branding' | 'lms' | 'auth'
 
 const Tabs: { id: TabId; label: string }[] = [
   { id: 'apps', label: 'Apps' },
   { id: 'branding', label: 'Branding & Theme' },
+  { id: 'lms', label: 'LMS' },
   { id: 'auth', label: 'Single Sign-On' },
 ]
 
@@ -497,6 +498,147 @@ const BrandingTab = ({
   )
 }
 
+const LmsTab = ({
+  lms,
+  onChange,
+}: {
+  lms: AppSettings['lms']
+  onChange: (next: AppSettings['lms']) => void
+}) => {
+  const update = (patch: Partial<AppSettings['lms']>) => {
+    onChange({ ...lms, ...patch })
+  }
+
+  const updateFeature = (key: keyof AppSettings['lms']['features'], value: boolean) => {
+    onChange({
+      ...lms,
+      features: { ...lms.features, [key]: value },
+    })
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">LMS availability</h2>
+            <p className="text-sm text-slate-500">
+              Control whether the Learning workspace appears in the launcher and where it fetches content.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={lms.enabled}
+              onChange={(e) => update({ enabled: e.target.checked })}
+            />
+            Enabled
+          </label>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium">API base URL</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              placeholder="https://lms.example.com/api"
+              value={lms.apiBaseUrl || ''}
+              onChange={(e) => update({ apiBaseUrl: e.target.value })}
+            />
+            <div className="mt-2">
+              <button
+                type="button"
+                className="rounded border px-3 py-1 text-sm"
+                onClick={async () => {
+                  if (!lms.apiBaseUrl) {
+                    const { toast } = await import('../store/toastStore')
+                    toast.info('No API base URL set. Using mock data.')
+                    return
+                  }
+                  const { ping } = await import('../utils/health')
+                  const ok = await ping(lms.apiBaseUrl)
+                  const { toast } = await import('../store/toastStore')
+                  ok ? toast.success('API reachable') : toast.error('API not reachable')
+                }}
+              >
+                Test API
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Requests for courses, lessons, and progress use this endpoint.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Asset CDN URL</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              placeholder="https://cdn.example.com/lms"
+              value={lms.assetCdnUrl || ''}
+              onChange={(e) => update({ assetCdnUrl: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Optional. Use when lesson media is served from a separate CDN.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <label className="flex items-center gap-3 rounded border bg-slate-50 p-4 text-sm">
+            <input
+              type="checkbox"
+              checked={lms.autoEnrollNewUsers}
+              onChange={(e) => update({ autoEnrollNewUsers: e.target.checked })}
+            />
+            Auto-enroll new users into onboarding courses
+          </label>
+          <div>
+            <label className="block text-sm font-medium">Recent courses to show</label>
+            <input
+              type="number"
+              min={1}
+              max={24}
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={lms.recentCoursesLimit}
+              onChange={(e) =>
+                update({ recentCoursesLimit: Math.max(1, Number.parseInt(e.target.value || '0', 10) || 1) })
+              }
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Controls how many courses appear on the dashboard overview.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold">Feature toggles</h2>
+        <p className="text-sm text-slate-500">Enable extensions that your learning content relies on.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {(
+            [
+              { key: 'quizzes', label: 'Quizzes', hint: 'Deliver graded checks inside lessons.' },
+              { key: 'discussions', label: 'Discussions', hint: 'Threaded conversations per lesson.' },
+              { key: 'certificates', label: 'Certificates', hint: 'Issue completion certificates automatically.' },
+            ] as const
+          ).map(({ key, label, hint }) => (
+            <label key={key} className="flex items-start gap-3 rounded border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={lms.features[key]}
+                onChange={(e) => updateFeature(key, e.target.checked)}
+              />
+              <span>
+                <span className="block font-medium">{label}</span>
+                <span className="mt-1 block text-xs text-slate-500">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 const AuthTab = ({
   auth,
   onChange,
@@ -683,6 +825,17 @@ export default function Settings() {
     if (!draft.appearance.palettes.length) {
       errors.push('At least one color palette is required')
     }
+    if (draft.lms.enabled) {
+      if (draft.lms.apiBaseUrl && !isValidUrl(draft.lms.apiBaseUrl)) {
+        errors.push('LMS API base URL must be http(s)')
+      }
+      if (draft.lms.assetCdnUrl && !isValidUrl(draft.lms.assetCdnUrl)) {
+        errors.push('LMS asset CDN must be http(s)')
+      }
+      if (!Number.isFinite(draft.lms.recentCoursesLimit) || draft.lms.recentCoursesLimit < 1) {
+        errors.push('Recent courses limit must be at least 1')
+      }
+    }
     if (draft.auth.enabled) {
       if (!draft.auth.clientId.trim()) errors.push('SSO client ID is required when enabling Azure AD')
       if (!draft.auth.authority || !isValidUrl(draft.auth.authority)) {
@@ -787,6 +940,13 @@ export default function Settings() {
         <BrandingTab
           appearance={draft.appearance}
           onChange={(appearance) => setDraft((prev) => ({ ...prev, appearance }))}
+        />
+      )}
+
+      {activeTab === 'lms' && (
+        <LmsTab
+          lms={draft.lms}
+          onChange={(lmsSettings) => setDraft((prev) => ({ ...prev, lms: lmsSettings }))}
         />
       )}
 
