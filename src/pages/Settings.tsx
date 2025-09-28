@@ -603,10 +603,12 @@ const AuthTab = ({
 }) => {
   const [testing, setTesting] = useState(false)
 
-  const scopesText = useMemo(() => auth.scopes.join('\n'), [auth.scopes])
+  const scopesText = useMemo(() => (auth?.scopes?.length ? auth.scopes.join('\n') : ''), [auth?.scopes])
 
   const update = (patch: Partial<AppSettings['auth']>) => {
-    onChange({ ...auth, ...patch })
+    const mergedScopes =
+      patch.scopes !== undefined ? patch.scopes : auth?.scopes && auth.scopes.length ? auth.scopes : ['openid', 'profile', 'email']
+    onChange({ ...auth, ...patch, scopes: mergedScopes })
   }
 
   const handleTenantChange = (value: string) => {
@@ -760,6 +762,8 @@ export default function Settings() {
   const updateSettings = useAppStore((s) => s.updateSettings)
   const setTheme = useAppStore((s) => s.setTheme)
   const theme = useAppStore((s) => s.theme)
+  const currentRoute = useAppStore((s) => s.route)
+  const setRoute = useAppStore((s) => s.setRoute)
 
   const [draft, setDraft] = useState<AppSettings>(() => cloneSettings(appSettings))
   const [activeTab, setActiveTab] = useState<TabId>('apps')
@@ -803,7 +807,12 @@ export default function Settings() {
     const enabledRoutes = new Set(
       draft.apps.filter((app) => app.kind === 'route' && app.enabled).map((app) => app.route),
     )
-    const fallbackRoute = enabledRoutes.has('/dashboard') ? '/dashboard' : enabledRoutes.values().next().value || '/dashboard'
+    let fallbackRoute: Route = '/dashboard'
+    if (enabledRoutes.has('/dashboard')) fallbackRoute = '/dashboard'
+    else {
+      const first = enabledRoutes.values().next()
+      if (first && typeof first.value === 'string') fallbackRoute = first.value as Route
+    }
     const adjustedDefaultAfterLogin = enabledRoutes.has(draft.routes.defaultAfterLogin)
       ? draft.routes.defaultAfterLogin
       : fallbackRoute
@@ -825,6 +834,37 @@ export default function Settings() {
         adjustedDefaultApp !== draft.routes.defaultApp
       ) {
         toast.info('Default routes updated to match available apps')
+      }
+
+      let redirectNeeded = false
+      if (!enabledRoutes.has(currentRoute) && currentRoute !== '/app') {
+        redirectNeeded = true
+      }
+
+      if (currentRoute === '/app') {
+        let currentAppId: string | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.location.hash.replace(/^#/, '')
+          const [, query = ''] = raw.split('?')
+          const params = new URLSearchParams(query)
+          currentAppId = params.get('id')
+        }
+        if (currentAppId) {
+          const matching = nextDraft.apps.find((app) => app.id === currentAppId)
+          if (!matching || !matching.enabled) {
+            redirectNeeded = true
+          }
+        } else {
+          redirectNeeded = true
+        }
+      }
+
+      if (redirectNeeded) {
+        const targetRoute = fallbackRoute || '/dashboard'
+        setRoute(targetRoute)
+        if (typeof window !== 'undefined' && targetRoute !== '/app') {
+          window.location.hash = `#${targetRoute}`
+        }
       }
     } catch (err) {
       toast.error('Failed to save settings')
@@ -929,7 +969,10 @@ export default function Settings() {
         <button
           type="button"
           className="rounded border px-4 py-2"
-          onClick={() => setDraft(cloneSettings(appSettings))}
+          onClick={() => {
+            setDraft(cloneSettings(appSettings))
+            toast.info('Changes reset to last saved values')
+          }}
         >
           Reset
         </button>

@@ -21,6 +21,13 @@ export default function LoginCard({ onClose }: { onClose?: () => void }) {
   const handleLogin = async (e?: React.FormEvent | React.MouseEvent<HTMLButtonElement>) => {
     e?.preventDefault()
     setError(null)
+    if (ssoEnabled) {
+      const { clientId, redirectUri, authority } = appSettings.auth
+      if (!clientId || !redirectUri || !authority) {
+        toast.error('SSO configuration is incomplete. Check Settings → Single Sign-On.')
+        return
+      }
+    }
     setLoading(true)
     try {
       if (ssoEnabled) {
