@@ -36,6 +36,7 @@ export default function PillMenu({
   const [isDragging, setIsDragging] = useState(false)
   const [showStack, setShowStack] = useState(false)
   const positionRef = useRef({ x: 40, y: 320 })
+  const [activeExternalId, setActiveExternalId] = useState<string | null>(null)
 
   const drag = useRef(false)
   const start = useRef({ x: 0, y: 0 })
@@ -136,6 +137,23 @@ export default function PillMenu({
       if (rafId.current) cancelAnimationFrame(rafId.current)
     }
   }, [handleMove, handleUp])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sync = () => {
+      const raw = (window.location.hash || '').replace(/^#/, '')
+      const [pathOnly, query = ''] = raw.split('?')
+      if (pathOnly !== '/app') {
+        setActiveExternalId(null)
+        return
+      }
+      const params = new URLSearchParams(query)
+      setActiveExternalId(params.get('id'))
+    }
+    sync()
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [])
 
   const handleFab = () => {
     if (moved.current) {
@@ -258,6 +276,7 @@ export default function PillMenu({
                       if (item.config.url) {
                         const id = item.config.id
                         window.location.hash = `/app?id=${encodeURIComponent(id)}`
+                        setActiveExternalId(id)
                       } else {
                         toast.error('No link configured. Edit the app in Settings → Apps.')
                       }
@@ -268,9 +287,10 @@ export default function PillMenu({
                     } else handleLogout()
                   }}
                   className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-colors duration-150 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand ${
-                    item.type === 'builtin' &&
-                    ((item.id === 'dashboard' && currentRoute === '/dashboard') ||
-                      (item.id === 'settings' && currentRoute === '/settings'))
+                    (item.type === 'builtin' &&
+                      ((item.id === 'dashboard' && currentRoute === '/dashboard') ||
+                        (item.id === 'settings' && currentRoute === '/settings'))) ||
+                    (item.type === 'app' && currentRoute === '/app' && activeExternalId === item.config.id)
                       ? 'border-brand bg-brand text-white'
                       : 'bg-white'
                   }`}

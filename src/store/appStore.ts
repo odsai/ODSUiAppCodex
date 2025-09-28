@@ -86,6 +86,16 @@ export type AppSettings = {
 }
 
 const BASE_APPS: AppConfig[] = []
+const LEGACY_PLACEHOLDER_IDS = new Set([
+  'app-dashboard',
+  'app-owui',
+  'app-penpot',
+  'app-flowise',
+  'app-excalidraw',
+  'app-comfyui',
+  'app-groups',
+  'app-settings',
+])
 
 const BASE_PALETTES: ColorPalette[] = [
   { id: 'palette-classic', name: 'Classic Red', primary: '#B13634', secondary: '#1F2937', accent: '#F59E0B' },
@@ -221,7 +231,12 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
     apps = cloneBaseApps()
   }
 
-  apps = apps.map((app) => ({ ...app, id: app.id || generateAppId() }))
+  const unique = new Map<string, AppConfig>()
+  apps.forEach((app) => {
+    const id = app.id || generateAppId()
+    if (!unique.has(id)) unique.set(id, { ...app, id })
+  })
+  apps = Array.from(unique.values()).filter((app) => app.url || !LEGACY_PLACEHOLDER_IDS.has(app.id))
 
   const appearanceRecord: Record<string, unknown> = isRecord(record.appearance) ? record.appearance : {}
   const rawPalettes = appearanceRecord.palettes
