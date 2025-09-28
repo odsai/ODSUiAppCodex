@@ -80,6 +80,7 @@ export type AppSettings = {
     selectedPaletteId: string
   }
   courses: { allowSelfEnroll: boolean }
+  lms: LmsSettings
   auth: AuthConfig
   misc?: Record<string, unknown>
   updatedAt: string
@@ -114,6 +115,32 @@ const DEFAULT_AUTH: AuthConfig = {
   postLogoutRedirectUri: '',
   scopes: ['openid', 'profile', 'email'],
   audience: '',
+}
+
+export type LmsSettings = {
+  enabled: boolean
+  apiBaseUrl?: string
+  assetCdnUrl?: string
+  autoEnrollNewUsers: boolean
+  features: {
+    quizzes: boolean
+    discussions: boolean
+    certificates: boolean
+  }
+  recentCoursesLimit: number
+}
+
+const DEFAULT_LMS: LmsSettings = {
+  enabled: false,
+  apiBaseUrl: '',
+  assetCdnUrl: '',
+  autoEnrollNewUsers: false,
+  features: {
+    quizzes: true,
+    discussions: true,
+    certificates: false,
+  },
+  recentCoursesLimit: 6,
 }
 
 const cloneBaseApps = () => BASE_APPS.map((app) => ({ ...app }))
@@ -206,6 +233,7 @@ const createDefaultAppSettings = (): AppSettings => {
       selectedPaletteId: palettes[0]?.id ?? 'palette-classic',
     },
     courses: { allowSelfEnroll: false },
+    lms: { ...DEFAULT_LMS },
     auth: { ...DEFAULT_AUTH },
     updatedAt: new Date().toISOString(),
   }
@@ -302,6 +330,33 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           ? !!record.courses.allowSelfEnroll
           : defaults.courses.allowSelfEnroll,
     },
+    lms: {
+      enabled: record.lms?.enabled === true,
+      apiBaseUrl: typeof record.lms?.apiBaseUrl === 'string' ? record.lms.apiBaseUrl : DEFAULT_LMS.apiBaseUrl,
+      assetCdnUrl: typeof record.lms?.assetCdnUrl === 'string' ? record.lms.assetCdnUrl : DEFAULT_LMS.assetCdnUrl,
+      autoEnrollNewUsers:
+        record.lms?.autoEnrollNewUsers !== undefined
+          ? !!record.lms.autoEnrollNewUsers
+          : DEFAULT_LMS.autoEnrollNewUsers,
+      features: {
+        quizzes:
+          record.lms?.features?.quizzes !== undefined
+            ? !!record.lms.features.quizzes
+            : DEFAULT_LMS.features.quizzes,
+        discussions:
+          record.lms?.features?.discussions !== undefined
+            ? !!record.lms.features.discussions
+            : DEFAULT_LMS.features.discussions,
+        certificates:
+          record.lms?.features?.certificates !== undefined
+            ? !!record.lms.features.certificates
+            : DEFAULT_LMS.features.certificates,
+      },
+      recentCoursesLimit:
+        typeof record.lms?.recentCoursesLimit === 'number'
+          ? record.lms.recentCoursesLimit
+          : DEFAULT_LMS.recentCoursesLimit,
+    },
     auth: normalizeAuthConfig(record.auth),
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
@@ -373,7 +428,8 @@ export const useAppStore = create<AppState>()(
       setLoginOpen: (v) => set({ loginOpen: v }),
 
       login: async (email: string, password: string) => {
-        const auth = get().appSettings.auth
+        const settings = get().appSettings
+        const auth = settings.auth
         const useAzure = auth.enabled && auth.clientId && auth.authority && typeof window !== 'undefined'
 
         if (useAzure) {
@@ -405,7 +461,8 @@ export const useAppStore = create<AppState>()(
 
             const token = loginResult.accessToken || silentToken?.accessToken || loginResult.idToken || undefined
 
-            set({ signedIn: true, user, token, loginOpen: false, route: '/dashboard' })
+            const nextRoute: Route = settings.lms.enabled ? '/lms/dashboard' : '/dashboard'
+            set({ signedIn: true, user, token, loginOpen: false, route: nextRoute })
             return
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Azure SSO login failed'
@@ -425,7 +482,8 @@ export const useAppStore = create<AppState>()(
           email,
           roles: isAdmin ? ['admin'] : ['user'],
         }
-        set({ signedIn: true, user: fallbackUser, token: 'mock', loginOpen: false, route: '/dashboard' })
+        const nextRoute: Route = get().appSettings.lms.enabled ? '/lms/dashboard' : '/dashboard'
+        set({ signedIn: true, user: fallbackUser, token: 'mock', loginOpen: false, route: nextRoute })
       },
 
       logout: () => {

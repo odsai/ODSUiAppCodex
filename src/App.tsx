@@ -9,6 +9,7 @@ import ComfyUI from './pages/ComfyUI'
 import Groups from './pages/Groups'
 import Settings from './pages/Settings'
 import ExternalApp from './pages/ExternalApp'
+import LmsDashboard from './lms/pages/Dashboard'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
 
@@ -94,6 +95,7 @@ const App = () => {
     case '/comfyui': page = <ComfyUI />; break
     case '/groups': page = <Groups />; break
     case '/settings': page = <Settings />; break
+    case '/lms/dashboard': page = <LmsDashboard />; break
     case '/app': page = <ExternalApp />; break
     case '/dashboard': page = <Dashboard />; break
     default: page = <OWUI />

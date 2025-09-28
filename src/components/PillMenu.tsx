@@ -50,6 +50,8 @@ export default function PillMenu({
   const GAP = 10
   const TH = 5
 
+  const lmsEnabled = useAppStore((s) => s.appSettings.lms.enabled)
+
   const resolvedItems: MenuItem[] = React.useMemo(() => {
     const items: MenuItem[] = [
       {
@@ -63,6 +65,16 @@ export default function PillMenu({
         },
       },
     ]
+
+    if (lmsEnabled) {
+      items.push({
+        type: 'builtin',
+        id: 'lms',
+        label: 'Learning',
+        icon: resolveIcon('FiBook', 18),
+        action: () => setRoute('/lms/dashboard'),
+      })
+    }
 
     if (isAdmin) {
       items.push({
@@ -90,7 +102,7 @@ export default function PillMenu({
 
     items.push({ type: 'logout', label: 'Logout', icon: <FiLogOut size={18} /> })
     return items
-  }, [appSettings?.apps, isAdmin, onDashboard, setRoute])
+  }, [appSettings?.apps, isAdmin, lmsEnabled, onDashboard, setRoute])
 
   const stackH = PILLPAD * 2 + resolvedItems.length * ITEMS + (resolvedItems.length - 1) * GAP
   const stackOffset = stackH + 8
@@ -299,6 +311,7 @@ export default function PillMenu({
                   className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-colors duration-150 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand ${
                     (item.type === 'builtin' &&
                       ((item.id === 'dashboard' && currentRoute === '/dashboard') ||
+                        (item.id === 'lms' && currentRoute.startsWith('/lms')) ||
                         (item.id === 'settings' && currentRoute === '/settings'))) ||
                     (item.type === 'app' && currentRoute === '/app' && activeExternalId === item.config.id)
                       ? 'border-brand bg-brand text-white'
