@@ -83,7 +83,7 @@ export function registerCourseRoutes(app: FastifyInstance) {
     const params = z.object({ courseId: z.string() }).parse(request.params)
     const payload = progressSchema.parse(request.body)
     request.log.info({ tenantId: request.tenantId, courseId: params.courseId, payload }, 'upsert progress')
-    await repo.upsertProgress({ ...payload, courseId: params.courseId })
+    await repo.upsertProgress({ ...payload, courseId: params.courseId, userId: request.user?.sub ?? payload.userId }, request.tenantId)
     reply.code(202)
     return { status: 'accepted' }
   })

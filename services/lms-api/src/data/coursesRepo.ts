@@ -42,7 +42,7 @@ export interface CoursesRepo {
   listCourses(tenantId: string, userId: string): Promise<CourseSummary[]>
   getCourse(tenantId: string, id: string): Promise<CourseDetail | null>
   getProgress(tenantId: string, userId: string, courseId: string): Promise<ProgressRecord[]>
-  upsertProgress(record: ProgressRecord): Promise<void>
+  upsertProgress(record: ProgressRecord, tenantId: string): Promise<void>
 }
 
 export class InMemoryCoursesRepo implements CoursesRepo {
@@ -90,7 +90,7 @@ export class InMemoryCoursesRepo implements CoursesRepo {
     return this.#progress.filter((p) => p.userId === userId && p.courseId === courseId)
   }
 
-  async upsertProgress(record: ProgressRecord): Promise<void> {
+  async upsertProgress(record: ProgressRecord, _tenantId: string): Promise<void> {
     const idx = this.#progress.findIndex(
       (p) => p.userId === record.userId && p.courseId === record.courseId && p.lessonId === record.lessonId,
     )

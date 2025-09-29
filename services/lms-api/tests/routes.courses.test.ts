@@ -50,5 +50,19 @@ describe('courses routes', () => {
     })
     expect(res.statusCode).toBe(503)
   })
-})
 
+  it('upserts progress and returns 202', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/courses/course-odsai-sample/progress',
+      headers: { ...headers, 'content-type': 'application/json' },
+      payload: {
+        userId: 'u1',
+        courseId: 'IGNORED',
+        lessonId: 'm1l1',
+        status: 'in-progress',
+      },
+    })
+    expect(res.statusCode).toBe(202)
+  })
+})

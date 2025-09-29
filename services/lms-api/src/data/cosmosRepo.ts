@@ -94,11 +94,11 @@ export class CosmosCoursesRepo implements CoursesRepo {
     }))
   }
 
-  async upsertProgress(record: ProgressRecord): Promise<void> {
+  async upsertProgress(record: ProgressRecord, tenantId: string): Promise<void> {
     const item = {
       id: `${record.userId}:${record.courseId}:${record.lessonId}`,
       type: 'progress',
-      tenantId: 'unknown', // will be added by route layer or set via record augmentation
+      tenantId,
       ...record,
       updatedAt: new Date().toISOString(),
     }
@@ -108,4 +108,3 @@ export class CosmosCoursesRepo implements CoursesRepo {
       .items.upsert(item as any)
   }
 }
-
