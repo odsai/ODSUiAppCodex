@@ -34,8 +34,8 @@ const courseDetailSchema = courseSummarySchema.extend({
 })
 
 const progressSchema = z.object({
-  userId: z.string(),
-  courseId: z.string(),
+  userId: z.string().optional(),
+  courseId: z.string().optional(),
   lessonId: z.string(),
   status: z.enum(['not-started', 'in-progress', 'completed']),
   score: z.number().min(0).max(1).optional(),
