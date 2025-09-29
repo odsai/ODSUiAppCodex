@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { OwuiAdapter } from '../clients/owuiAdapter'
+import { getCoursesRepo } from '../data/coursesRepo'
 
 const courseSummarySchema = z.object({
   id: z.string(),
@@ -52,44 +53,32 @@ const progressSchema = z.object({
 
 export function registerCourseRoutes(app: FastifyInstance) {
   const owui = new OwuiAdapter()
+  const repo = getCoursesRepo()
   app.get('/courses', async (request) => {
-    request.log.info({ tenantId: request.tenantId }, 'list courses (stub)')
-    return [
-      {
-        id: 'course-odsai-sample',
-        title: 'ODSAiStudio Starter Course',
-        status: 'published',
-        updatedAt: new Date().toISOString(),
-      },
-    ]
+    request.log.info({ tenantId: request.tenantId }, 'list courses')
+    const list = await repo.listCourses(request.tenantId, request.user?.sub ?? 'anonymous')
+    return list
   })
 
   app.get('/courses/:courseId', async (request, reply) => {
     const params = z.object({ courseId: z.string() }).parse(request.params)
-    request.log.info({ tenantId: request.tenantId, courseId: params.courseId }, 'get course (stub)')
-    const course = {
-      id: params.courseId,
-      title: 'ODSAiStudio Starter Course',
-      description: 'Sample course placeholder until backend connects to Cosmos DB.',
-      status: 'published' as const,
-      updatedAt: new Date().toISOString(),
-      publishedVersion: 1,
-      modules: [],
-    }
-
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId }, 'get course')
+    const course = await repo.getCourse(request.tenantId, params.courseId)
+    if (!course) return reply.notFound('Course not found')
     return courseDetailSchema.parse(course)
   })
 
   app.get('/courses/:courseId/progress', async (request) => {
     const params = z.object({ courseId: z.string() }).parse(request.params)
-    request.log.info({ tenantId: request.tenantId, courseId: params.courseId, user: request.user?.sub }, 'get progress (stub)')
-    return []
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId, user: request.user?.sub }, 'get progress')
+    return await repo.getProgress(request.tenantId, request.user?.sub ?? 'anonymous', params.courseId)
   })
 
   app.post('/courses/:courseId/progress', async (request, reply) => {
     const params = z.object({ courseId: z.string() }).parse(request.params)
     const payload = progressSchema.parse(request.body)
-    request.log.info({ tenantId: request.tenantId, courseId: params.courseId, payload }, 'upsert progress (stub)')
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId, payload }, 'upsert progress')
+    await repo.upsertProgress({ ...payload, courseId: params.courseId })
     reply.code(202)
     return { status: 'accepted' }
   })
