@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAppStore, type AppConfig, type AppSettings, type ColorPalette } from '../store/appStore'
 import { toast } from '../store/toastStore'
+import { ping } from '../utils/health'
 import { ICON_OPTIONS, resolveIcon } from '../utils/iconCatalog'
 
 const PROTECTED_APP_IDS = new Set(['app-dashboard', 'app-settings'])
@@ -64,7 +65,6 @@ const AppsTab = ({
       toast.error('No URL configured yet')
       return
     }
-    const { ping } = await import('../utils/health')
     const ok = await ping(url)
     if (ok) toast.success('Link reachable')
     else toast.error('Link appears offline')
@@ -551,13 +551,10 @@ const LmsTab = ({
                 className="rounded border px-3 py-1 text-sm"
                 onClick={async () => {
                   if (!lms.apiBaseUrl) {
-                    const { toast } = await import('../store/toastStore')
                     toast.info('No API base URL set. Using mock data.')
                     return
                   }
-                  const { ping } = await import('../utils/health')
                   const ok = await ping(lms.apiBaseUrl)
-                  const { toast } = await import('../store/toastStore')
                   ok ? toast.success('API reachable') : toast.error('API not reachable')
                 }}
               >
