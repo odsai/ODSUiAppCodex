@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useLmsStore } from '../store/lmsStore'
 import type { LmsCourse, LmsLesson } from '../types'
 import { getCourse } from '../api/courses'
+import { upsertProgress } from '../api/client'
 import { useAppStore } from '../../store/appStore'
 import { SAMPLE_COURSE, SAMPLE_COURSE_MAP } from '../sampleData'
 
@@ -9,6 +10,7 @@ const LessonPlayer: React.FC = () => {
   const courseMap = useLmsStore((s) => s.courseMap)
   const setCourse = useLmsStore((s) => s.setCourse)
   const lms = useAppStore((s) => s.appSettings.lms)
+  const token = useAppStore((s) => s.token)
 
   const params = useMemo(() => {
     const raw = (window.location.hash || '').replace(/^#/, '')
@@ -63,6 +65,19 @@ const LessonPlayer: React.FC = () => {
       cancelled = true
     }
   }, [params.courseId, params.lessonId, courseMap, setCourse, lms.apiBaseUrl])
+
+  // Post "in-progress" when a lesson becomes available
+  useEffect(() => {
+    if (!lesson || !course) return
+    if (!lms.apiBaseUrl) return
+    upsertProgress({
+      baseUrl: lms.apiBaseUrl,
+      token: token,
+      courseId: course.id,
+      lessonId: lesson.id,
+      status: 'in-progress',
+    }).catch(() => {/* swallow errors in UI */})
+  }, [lesson, course, lms.apiBaseUrl, token])
 
   if (loading) {
     return (
@@ -132,6 +147,20 @@ const LessonPlayer: React.FC = () => {
               ))}
             </ul>
             <p className="mt-4 text-xs text-slate-500">Sample quiz for demonstration only.</p>
+          </div>
+        )}
+        {lms.apiBaseUrl && (
+          <div className="mt-6 flex justify-end">
+            <button
+              className="rounded border px-3 py-1 text-sm"
+              onClick={() => {
+                if (!course || !lesson) return
+                upsertProgress({ baseUrl: lms.apiBaseUrl, token, courseId: course.id, lessonId: lesson.id, status: 'completed' })
+                  .catch(() => {})
+              }}
+            >
+              Mark as completed
+            </button>
           </div>
         )}
       </section>

@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import sensible from '@fastify/sensible'
 import helmet from '@fastify/helmet'
+import cors from '@fastify/cors'
 import { authPlugin } from '../plugins/auth'
 import { tenantPlugin } from '../plugins/tenant'
 import { registerCourseRoutes } from '../routes/courses'
@@ -14,6 +15,7 @@ export async function createApp() {
 
   await app.register(sensible)
   await app.register(helmet, { global: true })
+  await app.register(cors, { origin: true })
   await app.register(authPlugin)
   await app.register(tenantPlugin)
 
