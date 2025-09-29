@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { OwuiAdapter } from '../clients/owuiAdapter'
 import { getCoursesRepo } from '../data/coursesRepo'
 import { getPassThreshold, getMaxQuizAttempts } from '../config/env'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PDFDocument = require('pdfkit') as any
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
 }
@@ -147,7 +149,7 @@ export function registerCourseRoutes(app: FastifyInstance) {
         }
         if (!eligible) break
       }
-      const url = eligible ? `/courses/${encodeURIComponent(params.courseId)}/certificate/download` : null
+      const url = eligible ? `/courses/${encodeURIComponent(params.courseId)}/certificate/pdf` : null
       return { eligible, url }
     } catch {
       return { eligible: false, url: null }
@@ -189,6 +191,73 @@ export function registerCourseRoutes(app: FastifyInstance) {
       reply.header('Content-Type', 'text/html; charset=utf-8').send(html)
     } catch (e) {
       return reply.internalServerError('Failed to render certificate')
+    }
+  })
+
+  app.get('/courses/:courseId/certificate/pdf', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    try {
+      const [course, progress] = await Promise.all([
+        repo.getCourse(request.tenantId, params.courseId),
+        repo.getProgress(request.tenantId, request.user?.sub ?? 'anonymous', params.courseId),
+      ])
+      if (!course) return reply.notFound('Course not found')
+      const byLesson = new Map(progress.map((p) => [p.lessonId, p]))
+      const passThreshold = getPassThreshold()
+      let eligible = true
+      for (const m of course.modules) {
+        for (const l of m.lessons) {
+          const r = byLesson.get(l.id)
+          if (!r || r.status !== 'completed') { eligible = false; break }
+          if (l.type === 'quiz' && typeof r.score === 'number' && r.score < passThreshold) { eligible = false; break }
+        }
+        if (!eligible) break
+      }
+      if (!eligible) return reply.forbidden('Not eligible yet')
+
+      reply.header('Content-Type', 'application/pdf')
+      reply.header('Content-Disposition', `attachment; filename=certificate-${params.courseId}.pdf`)
+      const doc = new PDFDocument({ size: 'A4', margin: 50 })
+      doc.pipe(reply.raw)
+
+      // Header
+      doc
+        .fontSize(24)
+        .fillColor('#065f46')
+        .text('Certificate of Completion', { align: 'center' })
+      doc.moveDown(0.5)
+      doc
+        .fontSize(16)
+        .fillColor('#047857')
+        .text(course.title || 'Course', { align: 'center' })
+      doc.moveDown(2)
+
+      // Body
+      const learner = request.user?.sub ?? 'Learner'
+      doc.fontSize(12).fillColor('#111827')
+      doc.text('This certifies that', { align: 'center' })
+      doc.moveDown(0.3)
+      doc.fontSize(18).fillColor('#111827').text(learner, { align: 'center' })
+      doc.moveDown(0.3)
+      doc.fontSize(12).fillColor('#111827').text('has successfully completed the course.', { align: 'center' })
+      doc.moveDown(1.5)
+
+      // Meta
+      const issued = new Date().toLocaleString()
+      doc.fontSize(10).fillColor('#374151').text(`Issued on: ${issued}`, { align: 'center' })
+      doc.moveDown(0.5)
+      doc.fontSize(10).fillColor('#374151').text(`Tenant: ${request.tenantId || 'N/A'}`, { align: 'center' })
+
+      // Footer line
+      doc.moveDown(2)
+      doc.strokeColor('#10b981').lineWidth(2).moveTo(100, doc.y).lineTo(495, doc.y).stroke()
+      doc.moveDown(0.5)
+      doc.fontSize(10).fillColor('#6b7280').text('ODSAiStudio LMS', { align: 'center' })
+
+      doc.end()
+    } catch (e) {
+      request.log.error({ e }, 'Failed generating certificate PDF')
+      return reply.internalServerError('Failed to render certificate PDF')
     }
   })
 

@@ -137,7 +137,7 @@ const LessonPlayer: React.FC = () => {
           />
         )}
         {lesson.type === 'quiz' && lesson.quiz && (
-          {Array.isArray((lesson as any).quiz?.questions) ? (
+          Array.isArray((lesson as any).quiz?.questions) ? (
             <QuizMultiBlock
               questions={(lesson as any).quiz.questions as Array<{ id: string; text?: string; options: { id: string; text: string; correct?: boolean }[] }>}
               onSubmit={async (results) => {
@@ -176,7 +176,7 @@ const LessonPlayer: React.FC = () => {
                 }
               }}
             />
-          )}
+          )
         )}
         {lms.apiBaseUrl && (
           <div className="mt-6 flex justify-end">
