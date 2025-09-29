@@ -1,0 +1,113 @@
+import { FastifyInstance } from 'fastify'
+import { z } from 'zod'
+import { OwuiAdapter } from '../clients/owuiAdapter'
+
+const courseSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  status: z.enum(['draft', 'published', 'archived']).default('published'),
+  updatedAt: z.string(),
+})
+
+const courseDetailSchema = courseSummarySchema.extend({
+  publishedVersion: z.number().int().min(1),
+  draftVersion: z.number().int().min(1).optional(),
+  modules: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      order: z.number().int(),
+      lessons: z.array(
+        z.object({
+          id: z.string(),
+          type: z.enum(['video', 'reading', 'embed', 'quiz', 'lab']),
+          payload: z.record(z.unknown()),
+          estimatedDuration: z.number().int().optional(),
+          owuiWorkflowRef: z.string().optional(),
+        }),
+      ),
+    }),
+  ),
+})
+
+const progressSchema = z.object({
+  userId: z.string(),
+  courseId: z.string(),
+  lessonId: z.string(),
+  status: z.enum(['not-started', 'in-progress', 'completed']),
+  score: z.number().min(0).max(1).optional(),
+  aiInteractions: z
+    .array(
+      z.object({
+        sessionId: z.string().optional(),
+        workflowId: z.string().optional(),
+        summary: z.string().optional(),
+      }),
+    )
+    .optional(),
+  updatedAt: z.string().optional(),
+})
+
+export function registerCourseRoutes(app: FastifyInstance) {
+  const owui = new OwuiAdapter()
+  app.get('/courses', async (request) => {
+    request.log.info({ tenantId: request.tenantId }, 'list courses (stub)')
+    return [
+      {
+        id: 'course-odsai-sample',
+        title: 'ODSAiStudio Starter Course',
+        status: 'published',
+        updatedAt: new Date().toISOString(),
+      },
+    ]
+  })
+
+  app.get('/courses/:courseId', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId }, 'get course (stub)')
+    const course = {
+      id: params.courseId,
+      title: 'ODSAiStudio Starter Course',
+      description: 'Sample course placeholder until backend connects to Cosmos DB.',
+      status: 'published' as const,
+      updatedAt: new Date().toISOString(),
+      publishedVersion: 1,
+      modules: [],
+    }
+
+    return courseDetailSchema.parse(course)
+  })
+
+  app.get('/courses/:courseId/progress', async (request) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId, user: request.user?.sub }, 'get progress (stub)')
+    return []
+  })
+
+  app.post('/courses/:courseId/progress', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    const payload = progressSchema.parse(request.body)
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId, payload }, 'upsert progress (stub)')
+    reply.code(202)
+    return { status: 'accepted' }
+  })
+
+  app.post('/courses/:courseId/lessons/:lessonId/tutor', async (request) => {
+    const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
+    const body = z.object({ prompt: z.string().min(1) }).parse(request.body)
+    request.log.info({ tenantId: request.tenantId, params, body }, 'invoke tutor (stub)')
+    const lessonContext = JSON.stringify({ courseId: params.courseId, lessonId: params.lessonId })
+    const response = await owui.invokeTutor({
+      workflowId: 'lesson-tutor-workflow',
+      lessonContext,
+      prompt: body.prompt,
+      userId: request.user?.sub ?? 'anonymous',
+    })
+    return {
+      sessionId: response.sessionId,
+      message: response.reply,
+    }
+  })
+}

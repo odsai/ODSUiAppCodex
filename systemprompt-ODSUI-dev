@@ -332,6 +332,10 @@ Extensible Sections (Stubs)
 
 Architecture
 - Approved:
+  - Front-end: React 18 + TS + Zustand + Tailwind; LMS lives under `src/lms/**` with typed stores and pages.
+  - Backend baseline: Azure Container Apps + Node (Fastify/Nest) REST API, Cosmos DB (Postgres API) for courses/progress, Azure Cache for Redis for session/metadata, Blob Storage + Front Door for media/CDN.
+  - OWUI adapter: single client module wrapping chat/workflow/file APIs; versioned releases with contract tests and canary smoke suite on each OWUI upgrade.
+  - Background jobs: Azure Functions/Durable Functions for analytics, certificates, nightly summaries; IaC via Bicep/Terraform.
 - Proposed:
   - System diagram: client pages, Zustand store slices (auth/ui/data/settings), hash router, external tool iframes, CSP boundaries.
   - Data flow: login → store update → dashboard state; create/select project → route to `#/ai` with context; course select → `#/ai?channel=<id>`.
@@ -340,14 +344,17 @@ Architecture
 
 Auth & Roles
 - Approved:
+  - Identity via Azure AD (PKCE). Roles: learner, instructor, admin; enforced in tokens and UI; LMS APIs validate tenant + role claims.
+  - Tenancy: every record tagged with `tenantId`; Cosmos DB partitions, Redis namespaces, and OWUI sessions scoped per tenant; Front Door routes per subdomain.
 - Proposed:
   - Auth flow: email/password → mock provider → user profile with roles; error states (invalid creds, network); lockout/backoff policy (client-only hint).
-  - Roles: user, admin; admin gates Settings sections and Admin card visibility.
   - Session: in-memory token only; refresh strategy deferred to backend; explicit logout clears auth state and sensitive caches.
   - Future: OIDC/SSO integration with opendesignschool.ai (placeholder endpoints, scopes, PKCE).
 
 Projects & Courses
 - Approved:
+  - Course schema includes modules, lessons, OWUI workflow refs, tags, version metadata (draft/published), and estimated duration.
+  - Progress model tracks `userId`, `courseId`, `lessonId`, status, score, AI interactions (OWUI session ids) for analytics.
 - Proposed:
   - Field constraints: name 3–80 chars, description ≤ 500 chars; ids are UUIDv4.
   - Lifecycle: create, select (activates), edit name/description, archive (hide from default view), unarchive.
@@ -449,3 +456,11 @@ Docs & Governance
   - Approved vs Proposed tags usage guide with examples.
   - Review cadence: weekly doc grooming; stale proposals auto-pruned.
   - Risks/Mitigations and Open Questions subsections to capture uncertainties until resolved.
+Testing & Quality
+- Approved:
+  - Unit/component tests with Vitest + RTL; contract tests for LMS API (Pact/Supertest); Playwright E2E covering sign-in, course, lesson, authoring.
+  - OWUI compatibility suite runs nightly against latest OWUI builds; alerts on breakages.
+  - Accessibility scans (axe/Pa11y) integrated into CI.
+  - Load tests (k6 + Azure Load Testing) for 20k concurrent learners before major releases.
+- Proposed:
+  - Synthetic monitoring (App Insights availability tests) and chaos experiments (Azure Chaos Studio) automated in pipeline.
