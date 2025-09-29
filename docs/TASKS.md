@@ -11,7 +11,7 @@
 
 ## Next – Phase 1.5
 - Implement Cosmos schema migrations and index policies; stamp `tenantId` on all items.
-- Add Supertest suites (optional) and contract tests against OpenAPI.
+- Add Supertest suites (optional) and contract tests against OpenAPI – PARTIAL (YAML path coverage + Fastify inject added).
 - Add OWUI canary compatibility workflow (runs smoke tests when `OWUI_BASE_URL` secret is set).
 - Add GitHub Actions environment + secrets strategy; prepare dev deployment job to Azure Container Apps.
 - Implement rate limiting (+WAF at Front Door in infra phase) and basic request logging to App Insights.
