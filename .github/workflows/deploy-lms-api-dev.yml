@@ -1,0 +1,70 @@
+name: Deploy LMS API (dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      resourceGroup:
+        description: 'Resource group name'
+        required: true
+      location:
+        description: 'Azure location (e.g. eastus)'
+        required: true
+        default: 'eastus'
+      prefix:
+        description: 'Name prefix (e.g. odsui-lms-dev)'
+        required: true
+      containerAppName:
+        description: 'Container App name'
+        required: true
+      acrName:
+        description: 'ACR name (no domain)'
+        required: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      RG: ${{ github.event.inputs.resourceGroup }}
+      LOCATION: ${{ github.event.inputs.location }}
+      PREFIX: ${{ github.event.inputs.prefix }}
+      APPNAME: ${{ github.event.inputs.containerAppName }}
+      ACR_NAME: ${{ github.event.inputs.acrName }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build LMS API image
+        working-directory: services/lms-api
+        run: |
+          docker build -t $ACR_NAME.azurecr.io/odsui-lms-api:$IMAGE_TAG .
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: |
+          az acr login -n $ACR_NAME
+
+      - name: Push image
+        run: |
+          docker push $ACR_NAME.azurecr.io/odsui-lms-api:$IMAGE_TAG
+
+      - name: Deploy Bicep
+        uses: azure/arm-deploy@v2
+        with:
+          scope: resourcegroup
+          resourceGroupName: ${{ env.RG }}
+          template: infra/bicep/main.bicep
+          parameters: |
+            location=${{ env.LOCATION }}
+            prefix=${{ env.PREFIX }}
+            containerAppName=${{ env.APPNAME }}
+            containerImage=${{ env.ACR_NAME }}.azurecr.io/odsui-lms-api:${{ env.IMAGE_TAG }}
+
