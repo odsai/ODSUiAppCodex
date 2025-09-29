@@ -52,7 +52,12 @@ const progressSchema = z.object({
 })
 
 export function registerCourseRoutes(app: FastifyInstance) {
-  const owui = new OwuiAdapter()
+  let owui: OwuiAdapter | null = null
+  try {
+    owui = new OwuiAdapter()
+  } catch {
+    app.log.warn('OWUI not configured; tutor endpoint will return 503')
+  }
   const repo = getCoursesRepo()
   app.get('/courses', async (request) => {
     request.log.info({ tenantId: request.tenantId }, 'list courses')
@@ -83,10 +88,14 @@ export function registerCourseRoutes(app: FastifyInstance) {
     return { status: 'accepted' }
   })
 
-  app.post('/courses/:courseId/lessons/:lessonId/tutor', async (request) => {
+  app.post('/courses/:courseId/lessons/:lessonId/tutor', async (request, reply) => {
     const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
     const body = z.object({ prompt: z.string().min(1) }).parse(request.body)
     request.log.info({ tenantId: request.tenantId, params, body }, 'invoke tutor (stub)')
+    if (!owui) {
+      reply.code(503)
+      return { error: 'OWUI not configured' }
+    }
     const lessonContext = JSON.stringify({ courseId: params.courseId, lessonId: params.lessonId })
     const response = await owui.invokeTutor({
       workflowId: 'lesson-tutor-workflow',
@@ -94,9 +103,6 @@ export function registerCourseRoutes(app: FastifyInstance) {
       prompt: body.prompt,
       userId: request.user?.sub ?? 'anonymous',
     })
-    return {
-      sessionId: response.sessionId,
-      message: response.reply,
-    }
+    return { sessionId: response.sessionId, message: response.reply }
   })
 }
