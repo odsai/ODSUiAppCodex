@@ -3,6 +3,7 @@ import { useLmsStore } from '../store/lmsStore'
 import { useAppStore, type Route } from '../../store/appStore'
 import type { LmsCourse, LmsLesson } from '../types'
 import { getCourse } from '../api/courses'
+import { getProgress } from '../api/client'
 import { SAMPLE_COURSE, SAMPLE_COURSE_MAP } from '../sampleData'
 
 const CourseDetail: React.FC = () => {
@@ -19,6 +20,7 @@ const CourseDetail: React.FC = () => {
 
   const [loading, setLoading] = useState(false)
   const [course, setLocalCourse] = useState<LmsCourse | null>(null)
+  const [progress, setProgress] = useState<Record<string, 'in-progress' | 'completed'>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -53,6 +55,23 @@ const CourseDetail: React.FC = () => {
       cancelled = true
     }
   }, [courseId, courseMap, setCourse, lms.apiBaseUrl])
+
+  useEffect(() => {
+    if (!course || !lms.apiBaseUrl) return
+    getProgress({ baseUrl: lms.apiBaseUrl, courseId: course.id })
+      .then((records) => {
+        if (!records) return
+        const map: Record<string, 'in-progress' | 'completed'> = {}
+        records.forEach((r) => {
+          const prev = map[r.lessonId]
+          if (r.status === 'completed' || prev !== 'completed') {
+            map[r.lessonId] = r.status
+          }
+        })
+        setProgress(map)
+      })
+      .catch(() => {})
+  }, [course, lms.apiBaseUrl])
 
   const startLesson = () => {
     const resolvedId = courseId || SAMPLE_COURSE.id
@@ -106,25 +125,31 @@ const CourseDetail: React.FC = () => {
               <div key={m.id} className="rounded-xl border p-4">
                 <h3 className="text-lg font-semibold">{m.title}</h3>
                 <ul className="mt-3 space-y-2">
-                  {m.lessons.map((l: LmsLesson) => (
-                    <li key={l.id} className="flex items-center justify-between rounded border p-3">
-                      <div>
-                        <p className="font-medium">{l.title}</p>
-                        <p className="text-xs uppercase text-slate-500">{l.type}</p>
-                      </div>
-                      <button
-                        className="rounded border px-3 py-1 text-sm"
-                        onClick={() => {
-                          const url = new URL(window.location.href)
-                          url.hash = `/lms/lesson?course=${encodeURIComponent(course.id)}&lesson=${encodeURIComponent(l.id)}`
-                          window.location.href = url.toString()
-                          setRoute('/lms/lesson' as Route)
-                        }}
-                      >
-                        Open
-                      </button>
-                    </li>
-                  ))}
+                  {m.lessons.map((l: LmsLesson) => {
+                    const st = progress[l.id]
+                    const badge = st === 'completed' ? 'bg-green-100 text-green-700' : st === 'in-progress' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                    const label = st === 'completed' ? 'Completed' : st === 'in-progress' ? 'In progress' : 'Not started'
+                    return (
+                      <li key={l.id} className="flex items-center justify-between rounded border p-3">
+                        <div>
+                          <p className="font-medium">{l.title}</p>
+                          <p className="text-xs uppercase text-slate-500">{l.type}</p>
+                          <span className={`mt-1 inline-block rounded px-2 py-0.5 text-xs ${badge}`}>{label}</span>
+                        </div>
+                        <button
+                          className="rounded border px-3 py-1 text-sm"
+                          onClick={() => {
+                            const url = new URL(window.location.href)
+                            url.hash = `/lms/lesson?course=${encodeURIComponent(course.id)}&lesson=${encodeURIComponent(l.id)}`
+                            window.location.href = url.toString()
+                            setRoute('/lms/lesson' as Route)
+                          }}
+                        >
+                          Open
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ))}
