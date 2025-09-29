@@ -2,6 +2,10 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { OwuiAdapter } from '../clients/owuiAdapter'
 import { getCoursesRepo } from '../data/coursesRepo'
+import { getPassThreshold, getMaxQuizAttempts } from '../config/env'
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+}
 
 const courseSummarySchema = z.object({
   id: z.string(),
@@ -39,6 +43,7 @@ const progressSchema = z.object({
   lessonId: z.string(),
   status: z.enum(['not-started', 'in-progress', 'completed']),
   score: z.number().min(0).max(1).optional(),
+  attempts: z.number().int().min(0).optional(),
   aiInteractions: z
     .array(
       z.object({
@@ -83,9 +88,108 @@ export function registerCourseRoutes(app: FastifyInstance) {
     const params = z.object({ courseId: z.string() }).parse(request.params)
     const payload = progressSchema.parse(request.body)
     request.log.info({ tenantId: request.tenantId, courseId: params.courseId, payload }, 'upsert progress')
-    await repo.upsertProgress({ ...payload, courseId: params.courseId, userId: request.user?.sub ?? payload.userId }, request.tenantId)
+    // Server-side enforcement of max quiz attempts (unless completed)
+    try {
+      const course = await repo.getCourse(request.tenantId, params.courseId)
+      const lesson = (course?.modules ?? []).flatMap((m) => m.lessons).find((l) => l.id === payload.lessonId)
+      if (lesson?.type === 'quiz' && payload.status !== 'completed') {
+        const current = await repo.getProgress(request.tenantId, request.user?.sub ?? 'anonymous', params.courseId)
+        const rec = current.find((r) => r.lessonId === payload.lessonId)
+        const attempts = (rec as any)?.attempts ?? 0
+        const max = getMaxQuizAttempts()
+        if (attempts >= max) {
+          return reply.code(409).send({ error: 'Max attempts reached' })
+        }
+      }
+    } catch (e) {
+      // if course lookup fails, proceed without gating
+    }
+    await repo.upsertProgress({ ...payload, courseId: params.courseId, userId: request.user?.sub ?? payload.userId ?? 'anonymous' }, request.tenantId)
     reply.code(202)
     return { status: 'accepted' }
+  })
+
+  app.delete('/courses/:courseId/progress', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    // Admin-only reset; in dev mode, roles may be empty, so allow if AUTH_DEV_ALLOW
+    const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
+    if (!isAdmin) return reply.forbidden('Admin only')
+    const userId = request.user?.sub ?? 'anonymous'
+    await repo.clearProgress(request.tenantId, userId, params.courseId)
+    return reply.code(204).send()
+  })
+
+  app.delete('/courses/:courseId/lessons/:lessonId/attempts', async (request, reply) => {
+    const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
+    const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
+    if (!isAdmin) return reply.forbidden('Admin only')
+    const userId = request.user?.sub ?? 'anonymous'
+    await repo.clearLessonProgress(request.tenantId, userId, params.courseId, params.lessonId)
+    return reply.code(204).send()
+  })
+
+  app.get('/courses/:courseId/certificate', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    try {
+      const [course, progress] = await Promise.all([
+        repo.getCourse(request.tenantId, params.courseId),
+        repo.getProgress(request.tenantId, request.user?.sub ?? 'anonymous', params.courseId),
+      ])
+      if (!course) return reply.notFound('Course not found')
+      const byLesson = new Map(progress.map((p) => [p.lessonId, p]))
+      const passThreshold = getPassThreshold()
+      let eligible = true
+      for (const m of course.modules) {
+        for (const l of m.lessons) {
+          const r = byLesson.get(l.id)
+          if (!r || r.status !== 'completed') { eligible = false; break }
+          if (l.type === 'quiz' && typeof r.score === 'number' && r.score < passThreshold) { eligible = false; break }
+        }
+        if (!eligible) break
+      }
+      const url = eligible ? `/courses/${encodeURIComponent(params.courseId)}/certificate/download` : null
+      return { eligible, url }
+    } catch {
+      return { eligible: false, url: null }
+    }
+  })
+
+  app.get('/courses/:courseId/certificate/download', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    try {
+      const [course, progress] = await Promise.all([
+        repo.getCourse(request.tenantId, params.courseId),
+        repo.getProgress(request.tenantId, request.user?.sub ?? 'anonymous', params.courseId),
+      ])
+      if (!course) return reply.notFound('Course not found')
+      const byLesson = new Map(progress.map((p) => [p.lessonId, p]))
+      const passThreshold = getPassThreshold()
+      let eligible = true
+      for (const m of course.modules) {
+        for (const l of m.lessons) {
+          const r = byLesson.get(l.id)
+          if (!r || r.status !== 'completed') { eligible = false; break }
+          if (l.type === 'quiz' && typeof r.score === 'number' && r.score < passThreshold) { eligible = false; break }
+        }
+        if (!eligible) break
+      }
+      if (!eligible) return reply.forbidden('Not eligible yet')
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Certificate</title>
+      <style>body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:40px;background:#f9fafb;color:#111827}
+      .card{max-width:720px;margin:0 auto;border:2px solid #10b981;border-radius:16px;background:#ecfdf5;padding:32px;text-align:center}
+      h1{margin:0 0 8px;font-size:28px;color:#065f46}
+      h2{margin:0 0 24px;font-size:18px;color:#047857}
+      .meta{margin-top:24px;font-size:12px;color:#374151}</style></head><body>
+      <div class="card">
+      <h1>Certificate of Completion</h1>
+      <h2>${escapeHtml(course.title)}</h2>
+      <p>This certifies that <strong>${escapeHtml(request.user?.sub ?? 'Learner')}</strong> has successfully completed the course.</p>
+      <div class="meta">Issued on ${new Date().toLocaleDateString()}</div>
+      </div></body></html>`
+      reply.header('Content-Type', 'text/html; charset=utf-8').send(html)
+    } catch (e) {
+      return reply.internalServerError('Failed to render certificate')
+    }
   })
 
   app.post('/courses/:courseId/lessons/:lessonId/tutor', async (request, reply) => {
@@ -104,5 +208,58 @@ export function registerCourseRoutes(app: FastifyInstance) {
       userId: request.user?.sub ?? 'anonymous',
     })
     return { sessionId: response.sessionId, message: response.reply }
+  })
+
+  app.post('/courses/:courseId/lessons/:lessonId/quiz', async (request, reply) => {
+    const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
+    const body = z.object({ selected: z.array(z.string()).optional(), questions: z.array(z.object({ id: z.string(), selected: z.array(z.string()) })).optional() }).parse(request.body)
+    try {
+      const course = await repo.getCourse(request.tenantId, params.courseId)
+      const lesson = (course?.modules ?? []).flatMap((m) => m.lessons).find((l) => l.id === params.lessonId)
+      if (!lesson || lesson.type !== 'quiz') return reply.badRequest('Not a quiz lesson')
+      const payload = (lesson as any).payload ?? {}
+      let score = 0
+      if (Array.isArray(payload.questions)) {
+        // Exact-match per question
+        const qmap = new Map<string, { options: Array<{ id: string; correct?: boolean }> }>()
+        for (const q of payload.questions as Array<{ id: string; options: Array<{ id: string; correct?: boolean }> }>) {
+          qmap.set(q.id, { options: q.options })
+        }
+        const submitted = body.questions ?? []
+        const totalQ = qmap.size || 1
+        let correctQ = 0
+        for (const [qid, q] of qmap.entries()) {
+          const sub = submitted.find((s) => s.id === qid)
+          const correctIds = new Set(q.options.filter((o) => o.correct).map((o) => o.id))
+          const sel = new Set((sub?.selected ?? []))
+          // exact-match: selected must equal correct set
+          if (correctIds.size === sel.size && [...correctIds].every((id) => sel.has(id))) {
+            correctQ += 1
+          }
+        }
+        score = correctQ / totalQ
+      } else {
+        // Single-question options fallback
+        const opts = Array.isArray(payload.options) ? (payload.options as Array<{ id: string; correct?: boolean }>) : []
+        const correctIds = new Set(opts.filter((o) => o.correct).map((o) => o.id))
+        const selected = new Set(body.selected ?? [])
+        const total = correctIds.size || 1
+        let ok = 0
+        correctIds.forEach((id) => { if (selected.has(id)) ok += 1 })
+        score = ok / total
+      }
+      const passed = score >= getPassThreshold()
+      await repo.upsertProgress({
+        userId: request.user?.sub ?? 'anonymous',
+        courseId: params.courseId,
+        lessonId: params.lessonId,
+        status: passed ? 'completed' : 'in-progress',
+        score,
+      }, request.tenantId)
+      return { score, passed, status: passed ? 'completed' : 'in-progress' }
+    } catch (e) {
+      request.log.warn({ e }, 'quiz submission failed')
+      return reply.internalServerError('Quiz scoring failed')
+    }
   })
 }

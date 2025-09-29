@@ -58,10 +58,10 @@ export class OwuiAdapter {
       throw new Error(`OWUI tutor invocation failed: ${res.status} ${text}`)
     }
 
-    const data = await res.json()
+    const data = (await res.json()) as unknown as { sessionId?: string; reply?: string }
     return {
-      sessionId: data.sessionId ?? 'unknown',
-      reply: data.reply ?? '',
+      sessionId: data?.sessionId ?? 'unknown',
+      reply: data?.reply ?? '',
     }
   }
 

@@ -26,6 +26,7 @@ export type CourseDetail = CourseSummary & {
   publishedVersion: number
   draftVersion?: number
   modules: Module[]
+  settings?: { modulePrereqs?: boolean }
 }
 
 export type ProgressRecord = {
@@ -34,6 +35,7 @@ export type ProgressRecord = {
   lessonId: string
   status: 'not-started' | 'in-progress' | 'completed'
   score?: number
+  attempts?: number
   aiInteractions?: Array<{ sessionId?: string; workflowId?: string; summary?: string }>
   updatedAt?: string
 }
@@ -43,6 +45,8 @@ export interface CoursesRepo {
   getCourse(tenantId: string, id: string): Promise<CourseDetail | null>
   getProgress(tenantId: string, userId: string, courseId: string): Promise<ProgressRecord[]>
   upsertProgress(record: ProgressRecord, tenantId: string): Promise<void>
+  clearProgress(tenantId: string, userId: string, courseId: string): Promise<void>
+  clearLessonProgress(tenantId: string, userId: string, courseId: string, lessonId: string): Promise<void>
 }
 
 export class InMemoryCoursesRepo implements CoursesRepo {
@@ -66,7 +70,26 @@ export class InMemoryCoursesRepo implements CoursesRepo {
             { id: 'm1l2', type: 'video', payload: { url: 'https://www.w3schools.com/html/mov_bbb.mp4' } },
           ],
         },
+        {
+          id: 'm2',
+          title: 'Check Understanding',
+          order: 2,
+          lessons: [
+            {
+              id: 'm2q1',
+              type: 'quiz',
+              payload: {
+                options: [
+                  { id: 'a', text: 'Be specific', correct: true },
+                  { id: 'b', text: 'Be ambiguous', correct: false },
+                  { id: 'c', text: 'Provide examples', correct: true },
+                ],
+              },
+            },
+          ],
+        },
       ],
+      settings: { modulePrereqs: true },
     }
     this.#courses = { [sample.id]: sample }
   }
@@ -94,8 +117,21 @@ export class InMemoryCoursesRepo implements CoursesRepo {
     const idx = this.#progress.findIndex(
       (p) => p.userId === record.userId && p.courseId === record.courseId && p.lessonId === record.lessonId,
     )
-    if (idx >= 0) this.#progress[idx] = { ...this.#progress[idx], ...record, updatedAt: new Date().toISOString() }
-    else this.#progress.push({ ...record, updatedAt: new Date().toISOString() })
+    if (idx >= 0) {
+      const prev = this.#progress[idx]
+      const attempts = (prev.attempts ?? 0) + 1
+      this.#progress[idx] = { ...prev, ...record, attempts, updatedAt: new Date().toISOString() }
+    } else {
+      this.#progress.push({ ...record, attempts: 1, updatedAt: new Date().toISOString() })
+    }
+  }
+
+  async clearProgress(_tenantId: string, userId: string, courseId: string): Promise<void> {
+    this.#progress = this.#progress.filter((p) => !(p.userId === userId && p.courseId === courseId))
+  }
+
+  async clearLessonProgress(_tenantId: string, userId: string, courseId: string, lessonId: string): Promise<void> {
+    this.#progress = this.#progress.filter((p) => !(p.userId === userId && p.courseId === courseId && p.lessonId === lessonId))
   }
 }
 

@@ -577,6 +577,31 @@ const LmsTab = ({
               Optional. Use when lesson media is served from a separate CDN.
             </p>
           </div>
+          <div>
+            <label className="block text-sm font-medium">Pass threshold</label>
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={lms.rules?.passThreshold ?? 0.7}
+              onChange={(e) => update({ rules: { ...(lms.rules ?? { passThreshold: 0.7, maxQuizAttempts: 3 }), passThreshold: Math.max(0, Math.min(1, Number(e.target.value))) } })}
+            />
+            <p className="mt-1 text-xs text-slate-500">Minimum quiz score required to unlock next lesson.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Max quiz attempts</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={lms.rules?.maxQuizAttempts ?? 3}
+              onChange={(e) => update({ rules: { ...(lms.rules ?? { passThreshold: 0.7, maxQuizAttempts: 3 }), maxQuizAttempts: Math.max(1, Number.parseInt(e.target.value || '1', 10)) } })}
+            />
+            <p className="mt-1 text-xs text-slate-500">After this, lesson may lock until instructor review.</p>
+          </div>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -616,6 +641,9 @@ const LmsTab = ({
               { key: 'quizzes', label: 'Quizzes', hint: 'Deliver graded checks inside lessons.' },
               { key: 'discussions', label: 'Discussions', hint: 'Threaded conversations per lesson.' },
               { key: 'certificates', label: 'Certificates', hint: 'Issue completion certificates automatically.' },
+              { key: 'requireQuizPass', label: 'Require quiz pass to unlock next', hint: 'Learners must pass the quiz to proceed.' },
+              { key: 'sequential', label: 'Sequential lessons', hint: 'Require completing a lesson before unlocking the next.' },
+              { key: 'modulePrereqs', label: 'Module prerequisites', hint: 'Require previous module completion before entering next.' },
             ] as const
           ).map(({ key, label, hint }) => (
             <label key={key} className="flex items-start gap-3 rounded border p-3 text-sm">

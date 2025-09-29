@@ -130,6 +130,13 @@ export type LmsSettings = {
     quizzes: boolean
     discussions: boolean
     certificates: boolean
+    requireQuizPass?: boolean
+    sequential?: boolean
+    modulePrereqs?: boolean
+  }
+  rules?: {
+    passThreshold: number
+    maxQuizAttempts: number
   }
   recentCoursesLimit: number
 }
@@ -143,6 +150,13 @@ const DEFAULT_LMS: LmsSettings = {
     quizzes: true,
     discussions: true,
     certificates: false,
+    requireQuizPass: false,
+    sequential: false,
+    modulePrereqs: true,
+  },
+  rules: {
+    passThreshold: 0.7,
+    maxQuizAttempts: 3,
   },
   recentCoursesLimit: 6,
 }
@@ -355,6 +369,30 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           record.lms?.features?.certificates !== undefined
             ? !!record.lms.features.certificates
             : DEFAULT_LMS.features.certificates,
+        requireQuizPass:
+          record.lms?.features?.requireQuizPass !== undefined
+            ? !!record.lms.features.requireQuizPass
+            : DEFAULT_LMS.features.requireQuizPass,
+        sequential:
+          record.lms?.features?.sequential !== undefined
+            ? !!record.lms.features.sequential
+            : DEFAULT_LMS.features.sequential,
+        modulePrereqs:
+          record.lms?.features?.modulePrereqs !== undefined
+            ? !!record.lms.features.modulePrereqs
+            : DEFAULT_LMS.features.modulePrereqs,
+      },
+      rules: {
+        passThreshold:
+          isRecord(record.lms) && isRecord((record.lms as Record<string, unknown>).rules) &&
+          typeof ((record.lms as Record<string, unknown>).rules as Record<string, unknown>).passThreshold === 'number'
+            ? (((record.lms as Record<string, unknown>).rules as Record<string, unknown>).passThreshold as number)
+            : DEFAULT_LMS.rules!.passThreshold,
+        maxQuizAttempts:
+          isRecord(record.lms) && isRecord((record.lms as Record<string, unknown>).rules) &&
+          typeof ((record.lms as Record<string, unknown>).rules as Record<string, unknown>).maxQuizAttempts === 'number'
+            ? (((record.lms as Record<string, unknown>).rules as Record<string, unknown>).maxQuizAttempts as number)
+            : DEFAULT_LMS.rules!.maxQuizAttempts,
       },
       recentCoursesLimit:
         typeof record.lms?.recentCoursesLimit === 'number'

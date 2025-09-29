@@ -29,7 +29,7 @@ export class CosmosCoursesRepo implements CoursesRepo {
     const { resources } = await this.#client
       .database(this.#dbName)
       .container(this.#coursesContainer)
-      .items.query(query, { enableCrossPartitionQuery: true })
+      .items.query(query)
       .fetchAll()
     return (resources as any[]).map((c) => ({
       id: String(c.id),
@@ -63,7 +63,7 @@ export class CosmosCoursesRepo implements CoursesRepo {
       const { resources } = await this.#client
         .database(this.#dbName)
         .container(this.#coursesContainer)
-        .items.query(query, { enableCrossPartitionQuery: true })
+        .items.query(query)
         .fetchAll()
       return (resources?.[0] as unknown as CourseDetail) ?? null
     }
@@ -81,7 +81,7 @@ export class CosmosCoursesRepo implements CoursesRepo {
     const { resources } = await this.#client
       .database(this.#dbName)
       .container(this.#progressContainer)
-      .items.query(query, { enableCrossPartitionQuery: true })
+      .items.query(query)
       .fetchAll()
     return (resources as any[]).map((r) => ({
       userId: String(r.userId),
@@ -95,16 +95,49 @@ export class CosmosCoursesRepo implements CoursesRepo {
   }
 
   async upsertProgress(record: ProgressRecord, tenantId: string): Promise<void> {
+    // attempt to read existing record to increment attempts
+    let attempts = 1
+    try {
+      const { resource: existing } = await this.#client
+        .database(this.#dbName)
+        .container(this.#progressContainer)
+        .item(`${record.userId}:${record.courseId}:${record.lessonId}`, tenantId)
+        .read()
+      if (existing && typeof (existing as any).attempts === 'number') attempts = (existing as any).attempts + 1
+    } catch {}
+
     const item = {
       id: `${record.userId}:${record.courseId}:${record.lessonId}`,
       type: 'progress',
       tenantId,
       ...record,
+      attempts,
       updatedAt: new Date().toISOString(),
     }
     await this.#client
       .database(this.#dbName)
       .container(this.#progressContainer)
       .items.upsert(item as any)
+  }
+
+  async clearProgress(tenantId: string, userId: string, courseId: string): Promise<void> {
+    const query: SqlQuerySpec = {
+      query: 'SELECT p.id FROM p WHERE p.tenantId = @tenant AND p.type = "progress" AND p.userId = @user AND p.courseId = @course',
+      parameters: [
+        { name: '@tenant', value: tenantId },
+        { name: '@user', value: userId },
+        { name: '@course', value: courseId },
+      ],
+    }
+    const container = this.#client.database(this.#dbName).container(this.#progressContainer)
+    const { resources } = await container.items.query(query).fetchAll()
+    await Promise.all(
+      (resources as any[]).map((r) => container.item(String(r.id), tenantId).delete().catch(() => {})),
+    )
+  }
+
+  async clearLessonProgress(tenantId: string, userId: string, courseId: string, lessonId: string): Promise<void> {
+    const id = `${userId}:${courseId}:${lessonId}`
+    await this.#client.database(this.#dbName).container(this.#progressContainer).item(id, tenantId).delete().catch(() => {})
   }
 }

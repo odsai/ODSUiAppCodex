@@ -3,7 +3,8 @@ import { useLmsStore } from '../store/lmsStore'
 import { useAppStore, type Route } from '../../store/appStore'
 import type { LmsCourse, LmsLesson } from '../types'
 import { getCourse } from '../api/courses'
-import { getProgress } from '../api/client'
+import { getProgress, getCertificate, unlockLessonAttempt } from '../api/client'
+import { toast } from '../../store/toastStore'
 import { SAMPLE_COURSE, SAMPLE_COURSE_MAP } from '../sampleData'
 
 const CourseDetail: React.FC = () => {
@@ -21,6 +22,10 @@ const CourseDetail: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [course, setLocalCourse] = useState<LmsCourse | null>(null)
   const [progress, setProgress] = useState<Record<string, 'in-progress' | 'completed'>>({})
+  const [scores, setScores] = useState<Record<string, number>>({})
+  const [attempts, setAttempts] = useState<Record<string, number>>({})
+  const token = useAppStore((s) => s.token)
+  const isAdmin = !!useAppStore((s) => s.user)?.roles?.includes('admin')
 
   useEffect(() => {
     let cancelled = false
@@ -62,16 +67,35 @@ const CourseDetail: React.FC = () => {
       .then((records) => {
         if (!records) return
         const map: Record<string, 'in-progress' | 'completed'> = {}
+        const sc: Record<string, number> = {}
+        const at: Record<string, number> = {}
         records.forEach((r) => {
           const prev = map[r.lessonId]
           if (r.status === 'completed' || prev !== 'completed') {
             map[r.lessonId] = r.status
           }
+          if (typeof r.score === 'number') sc[r.lessonId] = r.score
+          const rr = r as unknown as { attempts?: number }
+          if (typeof rr.attempts === 'number') at[r.lessonId] = rr.attempts
         })
         setProgress(map)
+        setScores(sc)
+        setAttempts(at)
       })
       .catch(() => {})
   }, [course, lms.apiBaseUrl])
+
+  // Listen for local progress updates from LessonPlayer and update badges optimistically
+  useEffect(() => {
+    const onProgress = (e: Event) => {
+      const ev = e as CustomEvent<{ courseId: string; lessonId: string; status: 'in-progress' | 'completed' }>
+      if (!course || !ev.detail) return
+      if (ev.detail.courseId !== course.id) return
+      setProgress((prev) => ({ ...prev, [ev.detail.lessonId]: ev.detail.status }))
+    }
+    window.addEventListener('lms:progress-changed', onProgress as EventListener)
+    return () => window.removeEventListener('lms:progress-changed', onProgress as EventListener)
+  }, [course])
 
   const startLesson = () => {
     const resolvedId = courseId || SAMPLE_COURSE.id
@@ -115,6 +139,59 @@ const CourseDetail: React.FC = () => {
           </button>
         </div>
         {course.description && <p className="mt-2 text-slate-600">{course.description}</p>}
+        {(() => {
+          // Course completion banner
+          const allLessons = course.modules.flatMap((m) => m.lessons)
+          const done = allLessons.length > 0 && allLessons.every((l) => progress[l.id] === 'completed')
+          if (!done) return null
+          return (
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+              <span>Course completed. You can review lessons any time.</span>
+              {lms.apiBaseUrl && (
+                <button
+                  className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-100"
+                  onClick={async () => {
+                    const cert = await getCertificate({ baseUrl: lms.apiBaseUrl, courseId: course.id })
+                    if (!cert) { toast.error('Could not check certificate'); return }
+                    if (!cert.eligible) { toast.info('Not eligible for certificate yet'); return }
+                    if (cert.url) { window.open(cert.url, '_blank'); return }
+                    toast.success('Certificate generation coming soon')
+                  }}
+                >
+                  Get certificate
+                </button>
+              )}
+            </div>
+          )
+        })()}
+        {isAdmin && lms.apiBaseUrl && (
+          <div className="mt-3">
+            <button
+              className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+              onClick={async () => {
+                if (!confirm('Reset progress for this course?')) return
+                const base = lms.apiBaseUrl
+                try {
+                  const ok = await (async () => {
+                    const url = `${base!.replace(/\/$/, '')}/courses/${encodeURIComponent(course.id)}/progress`
+                    const res = await fetch(url, { method: 'DELETE', headers: { ...(token ? { Authorization: `Bearer ${token}` } : { Authorization: 'Bearer mock' }) } })
+                    return res.ok
+                  })()
+                  if (ok) {
+                    setProgress({})
+                    toast.success('Progress reset')
+                  } else {
+                    toast.error('Failed to reset progress')
+                  }
+                } catch {
+                  toast.error('Failed to reset progress')
+                }
+              }}
+            >
+              Reset progress (admin)
+            </button>
+          </div>
+        )}
       </header>
       <section className="rounded-2xl bg-white p-6 shadow-sm">
         {course.modules.length === 0 ? (
@@ -129,6 +206,45 @@ const CourseDetail: React.FC = () => {
                     const st = progress[l.id]
                     const badge = st === 'completed' ? 'bg-green-100 text-green-700' : st === 'in-progress' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
                     const label = st === 'completed' ? 'Completed' : st === 'in-progress' ? 'In progress' : 'Not started'
+                    // Sequential gating (previous lesson must be completed)
+                    const state = useAppStore.getState()
+                    const features = state.appSettings.lms.features || {}
+                    const rules = state.appSettings.lms.rules || { passThreshold: 0.7, maxQuizAttempts: 3 }
+                    const sequential = !!features.sequential
+                    const requireQuizPass = !!features.requireQuizPass
+                    const linear = course.modules.flatMap((mm) => mm.lessons.map((ll) => ll.id))
+                    const pos = linear.indexOf(l.id)
+                    let prevOk = true
+                    if (pos > 0) {
+                      const prevId = linear[pos - 1]
+                      prevOk = progress[prevId] === 'completed'
+                      if (prevOk && requireQuizPass) {
+                        // If previous lesson is a quiz, require pass score (>= 0.7). We don't have scores stored locally yet, so keep simple gate on completion for now.
+                        const prevLesson = course.modules.flatMap((mm) => mm.lessons).find((ll) => ll.id === prevId)
+                        if (prevLesson?.type === 'quiz') {
+                          const s = scores[prevId]
+                          prevOk = typeof s === 'number' ? s >= rules.passThreshold : prevOk
+                        }
+                      }
+                    }
+                    // Module-level prereqs: require previous module completion by default
+                    const moduleIndex = course.modules.findIndex((mm) => mm.lessons.some((ll) => ll.id === l.id))
+                    let moduleOk = true
+                    if (moduleIndex > 0) {
+                      const prevModuleLessons = course.modules[moduleIndex - 1].lessons
+                      moduleOk = prevModuleLessons.every((ll) => {
+                        const st2 = progress[ll.id]
+                        if (!requireQuizPass) return st2 === 'completed'
+                        if (ll.type !== 'quiz') return st2 === 'completed'
+                        const s2 = scores[ll.id]
+                        return st2 === 'completed' && typeof s2 === 'number' && s2 >= rules.passThreshold
+                      })
+                    }
+                    // Attempts lock for quiz lessons
+                    const maxAttempts = rules.maxQuizAttempts ?? 3
+                    const currentAttempts = attempts[l.id] ?? 0
+                    const attemptsLock = l.type === 'quiz' && progress[l.id] !== 'completed' && currentAttempts >= maxAttempts
+                    const locked = (sequential && !prevOk) || (features.modulePrereqs !== false && !moduleOk) || attemptsLock
                     return (
                       <li key={l.id} className="flex items-center justify-between rounded border p-3">
                         <div>
@@ -136,17 +252,44 @@ const CourseDetail: React.FC = () => {
                           <p className="text-xs uppercase text-slate-500">{l.type}</p>
                           <span className={`mt-1 inline-block rounded px-2 py-0.5 text-xs ${badge}`}>{label}</span>
                         </div>
-                        <button
-                          className="rounded border px-3 py-1 text-sm"
-                          onClick={() => {
-                            const url = new URL(window.location.href)
-                            url.hash = `/lms/lesson?course=${encodeURIComponent(course.id)}&lesson=${encodeURIComponent(l.id)}`
-                            window.location.href = url.toString()
-                            setRoute('/lms/lesson' as Route)
-                          }}
-                        >
-                          Open
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {attemptsLock && isAdmin && lms.apiBaseUrl && (
+                            <button
+                              className="rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50"
+                              onClick={async () => {
+                                const ok = await unlockLessonAttempt({ baseUrl: lms.apiBaseUrl, token, courseId: course.id, lessonId: l.id })
+                                if (ok) {
+                                  toast.success('Attempts unlocked')
+                                  const recs = await getProgress({ baseUrl: lms.apiBaseUrl, courseId: course.id })
+                                  if (recs) {
+                                    const at2: Record<string, number> = {}
+                                    recs.forEach((r) => { const rr = r as unknown as { attempts?: number }; if (typeof rr.attempts === 'number') at2[r.lessonId] = rr.attempts })
+                                    setAttempts(at2)
+                                  }
+                                } else {
+                                  toast.error('Failed to unlock attempts')
+                                }
+                              }}
+                            >
+                              Unlock
+                            </button>
+                          )}
+                          <button
+                            className={`rounded border px-3 py-1 text-sm ${locked ? 'opacity-50' : ''}`}
+                            disabled={locked}
+                            onClick={() => {
+                              if (st === 'completed') {
+                                toast.info('Already completed — opening for review')
+                              }
+                              const url = new URL(window.location.href)
+                              url.hash = `/lms/lesson?course=${encodeURIComponent(course.id)}&lesson=${encodeURIComponent(l.id)}`
+                              window.location.href = url.toString()
+                              setRoute('/lms/lesson' as Route)
+                            }}
+                          >
+                            {st === 'completed' ? 'Review' : locked ? 'Locked' : 'Open'}
+                          </button>
+                        </div>
                       </li>
                     )
                   })}
