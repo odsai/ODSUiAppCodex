@@ -5,6 +5,13 @@ export const tenantPlugin = fp(async (app) => {
   app.decorateRequest('tenantId', '')
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    const urlPath = (request.raw.url || '').split('?')[0]
+    const m = request.method
+    if ((m === 'GET' || m === 'HEAD') && (urlPath === '/health' || urlPath === '/favicon.ico')) {
+      // Skip tenant enforcement for public endpoints
+      request.tenantId = ''
+      return
+    }
     const headerTenant = request.headers['x-tenant-id']
     const tenantId = typeof headerTenant === 'string' ? headerTenant : undefined
     const userTenant = request.user?.tenantId

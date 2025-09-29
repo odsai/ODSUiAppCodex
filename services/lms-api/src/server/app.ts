@@ -23,6 +23,9 @@ export async function createApp() {
     registerCourseRoutes(instance)
 
     instance.get('/health', async () => ({ status: 'ok' }))
+    instance.get('/favicon.ico', async (_req, reply) => {
+      reply.code(204).header('Content-Type', 'image/x-icon').send()
+    })
   })
 
   return app

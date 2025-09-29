@@ -77,6 +77,12 @@ export const authPlugin = fp(async (app) => {
   const verifier = devMode ? buildDevVerifier() : buildAzureVerifier()
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    // Public allowlist: permit unauthenticated access to health and favicon
+    const urlPath = (request.raw.url || '').split('?')[0]
+    const m = request.method
+    if ((m === 'GET' || m === 'HEAD') && (urlPath === '/health' || urlPath === '/favicon.ico')) {
+      return
+    }
     try {
       const result = await verifier(request.headers.authorization)
       if (!result) return reply.unauthorized('Missing or invalid bearer token')
