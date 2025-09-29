@@ -15,7 +15,17 @@ npm install
 npm run dev
 ```
 
-The dev server listens on port `8080` by default. Endpoints currently return placeholder data; wire them to Cosmos DB/OWUI in Phase 1.
+The dev server listens on port `8080` by default. By default it uses an in-memory data store.
+
+To enable Cosmos DB (optional):
+```bash
+export DATA_BACKEND=cosmos
+export COSMOS_ENDPOINT="https://<your-account>.documents.azure.com:443/"
+export COSMOS_KEY="<primary-or-connection-key>"
+export COSMOS_DB="odsui-lms"
+export COSMOS_CONTAINER_COURSES="courses"
+export COSMOS_CONTAINER_PROGRESS="progress"
+```
 
 ## Scripts
 - `npm run dev` – start Fastify with `ts-node-dev`.
@@ -25,7 +35,7 @@ The dev server listens on port `8080` by default. Endpoints currently return pla
 
 ## Next Steps
 1. Implement Azure AD token validation inside `src/plugins/auth.ts`.
-2. Replace stub handlers in `src/routes/courses.ts` with Cosmos DB queries and OWUI adapter calls.
+2. Replace in-memory repository with Cosmos-backed repo (`DATA_BACKEND=cosmos`) and add read/write tests.
 3. Add integration tests (Pact or Supertest) to exercise the routes.
 4. Wire IaC modules for Container Apps, Cosmos, Redis, Key Vault, and Front Door.
 

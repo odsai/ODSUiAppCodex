@@ -100,7 +100,10 @@ export class InMemoryCoursesRepo implements CoursesRepo {
 }
 
 export function getCoursesRepo(): CoursesRepo {
-  // TODO: switch to Cosmos implementation when configured
+  if (process.env.DATA_BACKEND === 'cosmos') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { CosmosCoursesRepo } = require('./cosmosRepo') as { CosmosCoursesRepo: new () => CoursesRepo }
+    return new CosmosCoursesRepo()
+  }
   return new InMemoryCoursesRepo()
 }
-
