@@ -11,17 +11,18 @@ const LmsDashboard = () => {
   const setRoute = useAppStore((s) => s.setRoute)
   const setCourses = useLmsStore((s) => s.setCourses)
   const lms = useAppStore((s) => s.appSettings.lms)
+  const token = useAppStore((s) => s.token)
 
   useEffect(() => {
     if (!lms.apiBaseUrl) return
     let cancelled = false
-    getCourses(lms.apiBaseUrl).then((list) => {
+    getCourses({ apiBaseUrl: lms.apiBaseUrl, token }).then((list) => {
       if (!cancelled && list.length) setCourses(list)
     })
     return () => {
       cancelled = true
     }
-  }, [lms.apiBaseUrl, setCourses])
+  }, [lms.apiBaseUrl, setCourses, token])
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

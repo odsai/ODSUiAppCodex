@@ -7,3 +7,11 @@
 - 2025-09-26: Added stricter ESLint setup (TypeScript + React hooks) and resolved legacy warnings to keep the repo gold-standard clean.
 - 2025-09-26: Introduced Azure AD SSO configuration (Settings → Single Sign-On) and MSAL-based login/logout with fallback mock auth.
 - 2025-09-26: Simplified app configuration to link-only entries (no internal route selectors), added per-app custom icons, and refreshed the pill menu to always embed URLs.
+- 2025-09-27: Consolidated LMS roadmap with Phase 1 sub-phases and future phases 4-6 aligned to OWUI integration goals; updated `docs/TASKS.md` accordingly.
+- 2025-09-27: Phase 1.0 groundwork underway — LMS frontend now uses bearer tokens for courses/progress, adds retryable progress upserts, and removes ad-hoc `any` usage in quiz handling.
+- 2025-09-27: Refined multi-phase roadmap (Phase 1.0–1.3, 1.5, 2–6) with deeper OWUI/LMS integration details; synced plan in `docs/TASKS.md`.
+- 2025-09-27: Implemented OWUI tutor workflow mapping with conversation persistence and new LessonPlayer tutor panel.
+- 2025-09-27: Drafted `docs/AboutOpenDesignSchoolAi.md` outlining the platform vision, historical roots, and community roadmap.
+- 2025-09-27: Added tutor resiliency (retries + circuit breaker), `/metrics` endpoint, and OWUI canary workflow; surfaced metrics in Settings.
+- 2025-09-27: Added policy docs (Privacy, Licensing, GitHub/HF Usage) and initial `course.yaml` + lesson front‑matter spec with templates.
+- 2025-09-27: Documented certificate pipeline (`docs/certificates.md`) and improved stored download UX.

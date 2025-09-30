@@ -1,0 +1,33 @@
+name: OWUI Canary
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: OWUI health
+        env:
+          OWUI_BASE_URL: ${{ secrets.OWUI_BASE_URL }}
+        run: |
+          if [ -z "$OWUI_BASE_URL" ]; then
+            echo "OWUI_BASE_URL not set; skipping"; exit 0; fi
+          set -e
+          curl -sS "$OWUI_BASE_URL/api/health" | head -c 500
+      - name: Tutor ping (optional)
+        env:
+          LMS_API_BASE_URL: ${{ secrets.LMS_API_BASE_URL }}
+          LMS_BEARER: ${{ secrets.LMS_DEV_TOKEN }}
+          COURSE_ID: ${{ secrets.CANARY_COURSE_ID }}
+          LESSON_ID: ${{ secrets.CANARY_LESSON_ID }}
+        run: |
+          if [ -z "$LMS_API_BASE_URL" ] || [ -z "$LMS_BEARER" ] || [ -z "$COURSE_ID" ] || [ -z "$LESSON_ID" ]; then
+            echo "Tutor canary secrets not set; skipping"; exit 0; fi
+          set -e
+          curl -sS -X POST \
+            -H "Authorization: Bearer $LMS_BEARER" -H "Content-Type: application/json" \
+            "$LMS_API_BASE_URL/courses/$COURSE_ID/lessons/$LESSON_ID/tutor" \
+            --data '{"prompt":"canary"}' | head -c 500

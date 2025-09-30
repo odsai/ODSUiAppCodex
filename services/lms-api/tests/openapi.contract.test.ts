@@ -19,7 +19,9 @@ afterAll(async () => {
 describe('OpenAPI contract (basic path coverage)', () => {
   const specPath = path.resolve(process.cwd(), '../../LMS/API-SCHEMA.md')
   const raw = fs.readFileSync(specPath, 'utf8')
-  const doc = yaml.load(raw) as any
+  const yamlBlockMatch = raw.match(/```yaml([\s\S]*?)```/)
+  const source = yamlBlockMatch ? yamlBlockMatch[1] : raw
+  const doc = yaml.load(source) as any
 
   it('spec has required paths', () => {
     const p = doc.paths
@@ -64,4 +66,3 @@ describe('OpenAPI contract (basic path coverage)', () => {
     expect([503]).toContain(res.statusCode)
   })
 })
-

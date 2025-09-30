@@ -13,13 +13,23 @@ type ApiCourse = {
   updatedAt?: string
 }
 
-export async function getCourses(apiBaseUrl?: string, timeoutMs = 2500): Promise<LmsCourseSummary[]> {
+type CourseRequestBase = {
+  apiBaseUrl?: string
+  token?: string
+  timeoutMs?: number
+}
+
+export async function getCourses(options: CourseRequestBase = {}): Promise<LmsCourseSummary[]> {
+  const { apiBaseUrl, token, timeoutMs = 2500 } = options
   if (!apiBaseUrl) return SAMPLE_COURSE_SUMMARIES
   try {
     const controller = new AbortController()
     const t = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/courses`, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal: controller.signal,
     })
     clearTimeout(t)
@@ -31,7 +41,10 @@ export async function getCourses(apiBaseUrl?: string, timeoutMs = 2500): Promise
           id: String(c.id ?? ''),
           title: String(c.title ?? 'Course'),
           description: typeof c.description === 'string' ? c.description : undefined,
-          progress: typeof c.progress === 'string' ? Number(c.progress) || 0 : Number(c.progress ?? 0) || 0,
+          progress:
+            typeof c.progress === 'string'
+              ? Number(c.progress) || 0
+              : Number(c.progress ?? 0) || 0,
           updatedAt: String(c.updatedAt ?? new Date().toISOString()),
         }))
         .filter((c) => c.id && c.title)
@@ -41,13 +54,20 @@ export async function getCourses(apiBaseUrl?: string, timeoutMs = 2500): Promise
   }
   return SAMPLE_COURSE_SUMMARIES
 }
-export async function getCourse(id: string, apiBaseUrl?: string, timeoutMs = 2500): Promise<LmsCourse | null> {
+
+type GetCourseOptions = CourseRequestBase & { id: string }
+
+export async function getCourse(options: GetCourseOptions): Promise<LmsCourse | null> {
+  const { id, apiBaseUrl, token, timeoutMs = 2500 } = options
   if (!apiBaseUrl) return SAMPLE_COURSE_MAP[id] ?? SAMPLE_COURSE
   try {
     const controller = new AbortController()
     const t = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/courses/${encodeURIComponent(id)}`, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       signal: controller.signal,
     })
     clearTimeout(t)
@@ -57,4 +77,5 @@ export async function getCourse(id: string, apiBaseUrl?: string, timeoutMs = 250
     return SAMPLE_COURSE_MAP[id] ?? SAMPLE_COURSE
   }
 }
+
 export { SAMPLE_COURSE }

@@ -24,6 +24,11 @@ const CourseDetail: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, 'in-progress' | 'completed'>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
   const [attempts, setAttempts] = useState<Record<string, number>>({})
+  const [certificateInfo, setCertificateInfo] = useState<{
+    eligible: boolean
+    url: string | null
+    stored?: boolean
+  } | null>(null)
   const token = useAppStore((s) => s.token)
   const isAdmin = !!useAppStore((s) => s.user)?.roles?.includes('admin')
 
@@ -48,7 +53,7 @@ const CourseDetail: React.FC = () => {
     }
     setLoading(true)
     // Prefer fast fallback if API is slow/unreachable
-    getCourse(resolvedId, lms.apiBaseUrl, 800)
+    getCourse({ id: resolvedId, apiBaseUrl: lms.apiBaseUrl, token, timeoutMs: 800 })
       .then((c) => {
         if (!cancelled && c) {
           setLocalCourse(c)
@@ -59,11 +64,11 @@ const CourseDetail: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [courseId, courseMap, setCourse, lms.apiBaseUrl])
+  }, [courseId, courseMap, setCourse, lms.apiBaseUrl, token])
 
   useEffect(() => {
     if (!course || !lms.apiBaseUrl) return
-    getProgress({ baseUrl: lms.apiBaseUrl, courseId: course.id })
+    getProgress({ baseUrl: lms.apiBaseUrl, courseId: course.id, token })
       .then((records) => {
         if (!records) return
         const map: Record<string, 'in-progress' | 'completed'> = {}
@@ -83,7 +88,7 @@ const CourseDetail: React.FC = () => {
         setAttempts(at)
       })
       .catch(() => {})
-  }, [course, lms.apiBaseUrl])
+  }, [course, lms.apiBaseUrl, token])
 
   // Listen for local progress updates from LessonPlayer and update badges optimistically
   useEffect(() => {
@@ -96,6 +101,24 @@ const CourseDetail: React.FC = () => {
     window.addEventListener('lms:progress-changed', onProgress as EventListener)
     return () => window.removeEventListener('lms:progress-changed', onProgress as EventListener)
   }, [course])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!course || !lms.apiBaseUrl) {
+      setCertificateInfo(null)
+      return
+    }
+    getCertificate({ baseUrl: lms.apiBaseUrl, courseId: course.id, token })
+      .then((info) => {
+        if (!cancelled) setCertificateInfo(info)
+      })
+      .catch(() => {
+        if (!cancelled) setCertificateInfo(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [course, lms.apiBaseUrl, token])
 
   const startLesson = () => {
     const resolvedId = courseId || SAMPLE_COURSE.id
@@ -145,21 +168,41 @@ const CourseDetail: React.FC = () => {
           const done = allLessons.length > 0 && allLessons.every((l) => progress[l.id] === 'completed')
           if (!done) return null
           return (
-            <div className="mt-4 flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-              <span>Course completed. You can review lessons any time.</span>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+              <div>
+                <span>Course completed. You can review lessons any time.</span>
+                {certificateInfo?.stored && <div className="text-xs text-green-600">Stored certificate available on server.</div>}
+              </div>
               {lms.apiBaseUrl && (
-                <button
-                  className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-100"
-                  onClick={async () => {
-                    const cert = await getCertificate({ baseUrl: lms.apiBaseUrl, courseId: course.id })
-                    if (!cert) { toast.error('Could not check certificate'); return }
-                    if (!cert.eligible) { toast.info('Not eligible for certificate yet'); return }
-                    if (cert.url) { window.open(cert.url, '_blank'); return }
-                    toast.success('Certificate generation coming soon')
-                  }}
-                >
-                  Get certificate
-                </button>
+                <div className="flex items-center gap-2">
+                  {certificateInfo?.stored && (
+                    <button
+                      className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-100"
+                      onClick={() => {
+                        window.open(
+                          `${lms.apiBaseUrl.replace(/\/$/, '')}/courses/${encodeURIComponent(course.id)}/certificate/download`,
+                          '_blank',
+                          'noopener',
+                        )
+                      }}
+                    >
+                      Download HTML
+                    </button>
+                  )}
+                  <button
+                    className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-100"
+                    onClick={async () => {
+                      const cert = await getCertificate({ baseUrl: lms.apiBaseUrl, courseId: course.id, token })
+                      if (!cert) { toast.error('Could not check certificate'); return }
+                      setCertificateInfo(cert)
+                      if (!cert.eligible) { toast.info('Not eligible for certificate yet'); return }
+                      if (cert.url) { window.open(cert.url, '_blank', 'noopener'); return }
+                      toast.success('Certificate generation coming soon')
+                    }}
+                  >
+                    {certificateInfo?.stored ? 'Download stored PDF' : 'Generate certificate'}
+                  </button>
+                </div>
               )}
             </div>
           )
@@ -212,6 +255,7 @@ const CourseDetail: React.FC = () => {
                     const rules = state.appSettings.lms.rules || { passThreshold: 0.7, maxQuizAttempts: 3 }
                     const sequential = !!features.sequential
                     const requireQuizPass = !!features.requireQuizPass
+                    const modulePrereqsEnabled = course.settings?.modulePrereqs !== undefined ? !!course.settings.modulePrereqs : features.modulePrereqs !== false
                     const linear = course.modules.flatMap((mm) => mm.lessons.map((ll) => ll.id))
                     const pos = linear.indexOf(l.id)
                     let prevOk = true
@@ -227,10 +271,9 @@ const CourseDetail: React.FC = () => {
                         }
                       }
                     }
-                    // Module-level prereqs: require previous module completion by default
                     const moduleIndex = course.modules.findIndex((mm) => mm.lessons.some((ll) => ll.id === l.id))
                     let moduleOk = true
-                    if (moduleIndex > 0) {
+                    if (modulePrereqsEnabled && moduleIndex > 0) {
                       const prevModuleLessons = course.modules[moduleIndex - 1].lessons
                       moduleOk = prevModuleLessons.every((ll) => {
                         const st2 = progress[ll.id]
@@ -244,7 +287,7 @@ const CourseDetail: React.FC = () => {
                     const maxAttempts = rules.maxQuizAttempts ?? 3
                     const currentAttempts = attempts[l.id] ?? 0
                     const attemptsLock = l.type === 'quiz' && progress[l.id] !== 'completed' && currentAttempts >= maxAttempts
-                    const locked = (sequential && !prevOk) || (features.modulePrereqs !== false && !moduleOk) || attemptsLock
+                    const locked = (sequential && !prevOk) || (modulePrereqsEnabled && !moduleOk) || attemptsLock
                     return (
                       <li key={l.id} className="flex items-center justify-between rounded border p-3">
                         <div>

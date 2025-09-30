@@ -128,6 +128,11 @@ Pages consume Zustand slices via dedicated hooks (e.g. `useCourseList()`) export
 - **Autoscaling**: ACA revisions scale based on CPU, HTTP queue, and custom metrics (requests/sec). Cosmos DB autoscale throughput; Redis sized for peak connections.
 - **Observability**: Azure Monitor + App Insights with distributed tracing (OpenTelemetry). Dashboards for latency, error rate, OWUI call volume, cache hit rate.
 - **Chaos & Resilience**: Azure Chaos Studio experiments (cache outage, OWUI latency injection) to validate graceful degradation (fallback lessons, cached transcripts).
+- **OWUI Resilience Knobs**: Adapter supports jittered retries and a circuit breaker. Configure via env:
+  - `OWUI_RETRY_MAX` (default 3)
+  - `OWUI_BREAKER_THRESHOLD` (default 5)
+  - `OWUI_BREAKER_COOLDOWN_MS` (default 60000)
+  - Health endpoint: `GET /owui/health`; metrics at `GET /metrics` for basic counters and latency snapshots.
 - **Cost controls**: Azure Cost Management budgets per environment; alert when >70% of monthly quota. Scheduled scale-down windows for non-critical jobs; use storage lifecycle policies for logs.
 
 ## Roadmap Refinements

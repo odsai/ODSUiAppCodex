@@ -6,9 +6,16 @@ export type LmsQuizOption = {
   correct?: boolean
 }
 
-export type LmsQuiz = {
-  question: string
+export type LmsQuizQuestion = {
+  id: string
+  text?: string
   options: LmsQuizOption[]
+}
+
+export type LmsQuiz = {
+  question?: string
+  options?: LmsQuizOption[]
+  questions?: LmsQuizQuestion[]
 }
 
 export type LmsLesson = {
@@ -19,6 +26,8 @@ export type LmsLesson = {
   videoUrl?: string
   embedUrl?: string
   quiz?: LmsQuiz
+  owuiWorkflowRef?: string
+  payload?: Record<string, unknown>
 }
 
 export type LmsModule = {

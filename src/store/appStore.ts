@@ -17,6 +17,7 @@ export type Route =
   | '/lms/courses'
   | '/lms/course'
   | '/lms/lesson'
+  | '/lms/admin'
 
 export type User = {
   id: string
@@ -104,7 +105,7 @@ const LEGACY_PLACEHOLDER_IDS = new Set([
 ])
 
 const BASE_PALETTES: ColorPalette[] = [
-  { id: 'palette-classic', name: 'Classic Red', primary: '#B13634', secondary: '#1F2937', accent: '#F59E0B' },
+  { id: 'palette-classic', name: 'KTM Orange', primary: '#FF6F00', secondary: '#1F2937', accent: '#F59E0B' },
   { id: 'palette-ocean', name: 'Ocean', primary: '#2563EB', secondary: '#0F172A', accent: '#38BDF8' },
   { id: 'palette-forest', name: 'Forest', primary: '#15803D', secondary: '#0B3A25', accent: '#65A30D' },
 ]
@@ -125,6 +126,7 @@ export type LmsSettings = {
   enabled: boolean
   apiBaseUrl?: string
   assetCdnUrl?: string
+  owuiWorkflowBaseUrl?: string
   autoEnrollNewUsers: boolean
   features: {
     quizzes: boolean
@@ -145,6 +147,7 @@ const DEFAULT_LMS: LmsSettings = {
   enabled: false,
   apiBaseUrl: '',
   assetCdnUrl: '',
+  owuiWorkflowBaseUrl: '',
   autoEnrollNewUsers: false,
   features: {
     quizzes: true,
@@ -352,6 +355,8 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
       enabled: record.lms?.enabled === true,
       apiBaseUrl: typeof record.lms?.apiBaseUrl === 'string' ? record.lms.apiBaseUrl : DEFAULT_LMS.apiBaseUrl,
       assetCdnUrl: typeof record.lms?.assetCdnUrl === 'string' ? record.lms.assetCdnUrl : DEFAULT_LMS.assetCdnUrl,
+      owuiWorkflowBaseUrl:
+        typeof record.lms?.owuiWorkflowBaseUrl === 'string' ? record.lms.owuiWorkflowBaseUrl : DEFAULT_LMS.owuiWorkflowBaseUrl,
       autoEnrollNewUsers:
         record.lms?.autoEnrollNewUsers !== undefined
           ? !!record.lms.autoEnrollNewUsers

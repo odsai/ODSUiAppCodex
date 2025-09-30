@@ -16,9 +16,18 @@ const isValidUrl = (value?: string) => {
   try {
     const url = new URL(value)
     return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch (err) {
+  } catch {
     return false
   }
+}
+
+type OwuiHealthResponse = {
+  status?: string
+  breaker?: {
+    open?: boolean
+    cooldownMsRemaining?: number
+  }
+  message?: string
 }
 
 type TabId = 'apps' | 'branding' | 'lms' | 'auth'
@@ -257,6 +266,53 @@ const AppsTab = ({
           Allow course self-enrollment
         </label>
       </section>
+    </div>
+  )
+}
+
+function MetricsPanel() {
+  const lms = useAppStore((s) => s.appSettings.lms)
+  const token = useAppStore((s) => s.token)
+  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState<null | {
+    tutor_success_total?: number
+    tutor_failure_total?: number
+    tutor_latency_p95_ms?: number
+    tutor_latency_p99_ms?: number
+    samples?: number
+  }>(null)
+  const refresh = async () => {
+    if (!lms.apiBaseUrl) {
+      toast.info('Set LMS API base URL')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch(`${lms.apiBaseUrl.replace(/\/$/, '')}/metrics`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : { Authorization: 'Bearer mock' }) },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as typeof data
+      setData(json)
+    } catch {
+      toast.error('Failed to load metrics')
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <div className="mt-1 rounded border p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-slate-600">
+          <div>Success: {data?.tutor_success_total ?? 0}</div>
+          <div>Failure: {data?.tutor_failure_total ?? 0}</div>
+          <div>P95 latency: {data?.tutor_latency_p95_ms ?? 0} ms</div>
+          <div>P99 latency: {data?.tutor_latency_p99_ms ?? 0} ms</div>
+        </div>
+        <button className="rounded border px-3 py-1 text-sm" onClick={refresh} disabled={loading}>
+          {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -555,7 +611,11 @@ const LmsTab = ({
                     return
                   }
                   const ok = await ping(lms.apiBaseUrl)
-                  ok ? toast.success('API reachable') : toast.error('API not reachable')
+                  if (ok) {
+                    toast.success('API reachable')
+                  } else {
+                    toast.error('API not reachable')
+                  }
                 }}
               >
                 Test API
@@ -576,6 +636,65 @@ const LmsTab = ({
             <p className="mt-1 text-xs text-slate-500">
               Optional. Use when lesson media is served from a separate CDN.
             </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">OWUI workflow base URL</label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2"
+              placeholder="https://owui.yourdomain.com"
+              value={lms.owuiWorkflowBaseUrl || ''}
+              onChange={(e) => update({ owuiWorkflowBaseUrl: e.target.value })}
+            />
+            <div className="mt-2 flex items-start gap-2">
+              <button
+                type="button"
+                className="rounded border px-3 py-1 text-sm"
+                onClick={async () => {
+                  if (!lms.apiBaseUrl) {
+                    toast.info('Configure the LMS API base URL first.')
+                    return
+                  }
+                  try {
+                    const base = lms.apiBaseUrl.replace(/\/$/, '')
+                    const res = await fetch(`${base}/owui/health`, {
+                      headers: {
+                        ...(token ? { Authorization: `Bearer ${token}` } : { Authorization: 'Bearer mock' }),
+                      },
+                    })
+                    if (res.ok) {
+                      const payload: OwuiHealthResponse = await res
+                        .json()
+                        .catch(() => ({} as OwuiHealthResponse))
+                      const open = payload.breaker?.open
+                      if (open) {
+                        const ms = payload?.breaker?.cooldownMsRemaining ?? 0
+                        toast.info(`OWUI reachable; breaker cooling down (${ms} ms)`)
+                      } else {
+                        toast.success('OWUI tutor endpoint reachable')
+                      }
+                    } else {
+                      const payload: OwuiHealthResponse = await res
+                        .json()
+                        .catch(() => ({} as OwuiHealthResponse))
+                      toast.error(payload.message || `OWUI health check failed (${res.status})`)
+                    }
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : 'OWUI health check failed')
+                  }
+                }}
+              >
+                Test OWUI
+              </button>
+              <p className="text-xs text-slate-500">
+                Requires `OWUI_BASE_URL` (and optional `OWUI_API_KEY`) on the LMS API server.
+              </p>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Used to embed OWUI workflows inside lessons (e.g., https://owui.example.com/workflows/&lt;id&gt;).</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Tutor metrics (read-only)</label>
+            <MetricsPanel />
+            <p className="mt-1 text-xs text-slate-500">Aggregated counts and latency snapshots exposed by the LMS API.</p>
           </div>
           <div>
             <label className="block text-sm font-medium">Pass threshold</label>
@@ -841,7 +960,7 @@ export default function Settings() {
     setDraft(cloneSettings(appSettings))
   }, [appSettings])
 
-  const validateDraft = () => {
+  const validateDraft = (): boolean => {
     const errors: string[] = []
     draft.apps.forEach((app) => {
       if (!app.label.trim()) errors.push('Each app needs a name')
@@ -884,7 +1003,7 @@ export default function Settings() {
     try {
       updateSettings(cloneSettings(draft))
       toast.success('Settings saved')
-    } catch (err) {
+    } catch {
       toast.error('Failed to save settings')
     } finally {
       setSaving(false)

@@ -34,6 +34,8 @@ export const SAMPLE_COURSE: LmsCourse = {
               { id: 'd', text: 'Ignore model limitations' },
             ],
           },
+          owuiWorkflowRef: 'lesson-tutor-workflow',
+          payload: { owuiWorkflowRef: 'lesson-tutor-workflow' },
         },
       ],
     },
@@ -75,4 +77,3 @@ export const SAMPLE_COURSE_MAP: Record<string, LmsCourse> = SAMPLE_COURSE_ALIAS_
   (acc, alias) => ({ ...acc, [alias]: SAMPLE_COURSE }),
   { [SAMPLE_COURSE.id]: SAMPLE_COURSE },
 )
-

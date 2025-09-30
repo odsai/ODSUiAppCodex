@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLmsStore } from '../store/lmsStore'
-import type { LmsCourse, LmsLesson } from '../types'
+import type { LmsCourse, LmsLesson, LmsQuizOption, LmsQuizQuestion } from '../types'
 import { getCourse } from '../api/courses'
-import { upsertProgress, submitQuiz } from '../api/client'
+import { upsertProgress, submitQuiz, getProgress, invokeTutor, type TutorInvokeResult } from '../api/client'
 import { useAppStore } from '../../store/appStore'
 import { toast } from '../../store/toastStore'
 import { SAMPLE_COURSE, SAMPLE_COURSE_MAP } from '../sampleData'
@@ -27,6 +27,11 @@ const LessonPlayer: React.FC = () => {
   const [course, setLocalCourse] = useState<LmsCourse | null>(null)
   const [lesson, setLesson] = useState<LmsLesson | null>(null)
   const [saved, setSaved] = useState<'idle' | 'saving' | 'done'>('idle')
+  const [tutorMessages, setTutorMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; sessionId?: string }>>([])
+  const [tutorState, setTutorState] = useState<'idle' | 'loading' | 'sending'>('idle')
+  const [tutorError, setTutorError] = useState<string | null>(null)
+  const [prompt, setPrompt] = useState('')
+  const [breakerInfo, setBreakerInfo] = useState<{ open?: boolean; cooldownMsRemaining?: number } | null>(null)
   const setRoute = useAppStore((s) => s.setRoute)
 
   useEffect(() => {
@@ -56,7 +61,7 @@ const LessonPlayer: React.FC = () => {
     }
     setLoading(true)
     // Prefer fast fallback if API is slow/unreachable
-    getCourse(resolvedCourseId, lms.apiBaseUrl, 800)
+    getCourse({ id: resolvedCourseId, apiBaseUrl: lms.apiBaseUrl, token, timeoutMs: 800 })
       .then((c) => {
         if (c) {
           setCourse(c, resolvedCourseId)
@@ -67,7 +72,15 @@ const LessonPlayer: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [params.courseId, params.lessonId, courseMap, setCourse, lms.apiBaseUrl])
+  }, [params.courseId, params.lessonId, courseMap, setCourse, lms.apiBaseUrl, token])
+
+  const workflowRef = useMemo(() => {
+    if (!lesson) return undefined
+    return (
+      lesson.owuiWorkflowRef ||
+      (typeof lesson.payload === 'object' ? (lesson.payload as Record<string, unknown>).owuiWorkflowRef : undefined)
+    ) as string | undefined
+  }, [lesson])
 
   // Post "in-progress" when a lesson becomes available
   useEffect(() => {
@@ -81,6 +94,69 @@ const LessonPlayer: React.FC = () => {
       status: 'in-progress',
     }).catch(() => {/* swallow errors in UI */})
   }, [lesson, course, lms.apiBaseUrl, token])
+
+  // Load historic tutor interactions to seed the conversation panel
+  useEffect(() => {
+    if (!lesson || !course || !lms.apiBaseUrl || !workflowRef) {
+      setTutorMessages([])
+      return
+    }
+    setTutorState('loading')
+    getProgress({ baseUrl: lms.apiBaseUrl, token, courseId: course.id })
+      .then((records) => {
+        if (!records) return
+        const current = records.find((r) => r.lessonId === lesson.id)
+        if (!current?.aiInteractions?.length) {
+          setTutorMessages([])
+          return
+        }
+        const seeded = current.aiInteractions
+          .filter((entry) => entry.summary)
+          .map((entry) => ({
+            role: 'assistant' as const,
+            content: entry.summary ?? '',
+            sessionId: entry.sessionId,
+          }))
+        setTutorMessages(seeded)
+      })
+      .finally(() => setTutorState('idle'))
+  }, [lesson, course, lms.apiBaseUrl, token, workflowRef])
+
+  const handleTutorSubmit = async () => {
+    if (!course || !lesson || !lms.apiBaseUrl || !workflowRef) return
+    const trimmed = prompt.trim()
+    if (!trimmed) {
+      toast.info('Enter a question for the tutor')
+      return
+    }
+    setTutorError(null)
+    setTutorMessages((prev) => [...prev, { role: 'user', content: trimmed }])
+    setTutorState('sending')
+    const result: TutorInvokeResult = await invokeTutor({
+      baseUrl: lms.apiBaseUrl,
+      token,
+      courseId: course.id,
+      lessonId: lesson.id,
+      prompt: trimmed,
+    })
+    if (!result.ok) {
+      const msg = result.error || 'Tutor is unavailable right now.'
+      setTutorError(msg)
+      toast.error(msg)
+      if (result.status === 503) {
+        setBreakerInfo({ open: true })
+      }
+      setTutorState('idle')
+      return
+    }
+    setBreakerInfo(null)
+    setTutorMessages((prev) => [
+      ...prev,
+      { role: 'assistant', content: result.message, sessionId: result.sessionId },
+    ])
+    setPrompt('')
+    setTutorState('idle')
+  }
 
   if (loading) {
     return (
@@ -137,22 +213,29 @@ const LessonPlayer: React.FC = () => {
           />
         )}
         {lesson.type === 'quiz' && lesson.quiz && (
-          Array.isArray((lesson as any).quiz?.questions) ? (
+          isMultiQuiz(lesson.quiz) ? (
             <QuizMultiBlock
-              questions={(lesson as any).quiz.questions as Array<{ id: string; text?: string; options: { id: string; text: string; correct?: boolean }[] }>}
-              onSubmit={async (results) => {
+              questions={lesson.quiz.questions}
+              onSubmit={async ({ score: clientScore, questions }) => {
                 if (!course || !lesson) return
-                const resp = await submitQuiz({ baseUrl: lms.apiBaseUrl, token, courseId: course.id, lessonId: lesson.id, questions: results })
-                const passThreshold = (useAppStore.getState().appSettings.lms.rules?.passThreshold ?? 0.7)
-                const status = resp?.status ?? ((results.filter(r => r.selected.length>0).length / results.length) >= passThreshold ? 'completed' : 'in-progress')
+                const resp = await submitQuiz({ baseUrl: lms.apiBaseUrl, token, courseId: course.id, lessonId: lesson.id, questions })
+                const passThreshold = useAppStore.getState().appSettings.lms.rules?.passThreshold ?? 0.7
+                const status = resp?.status ?? (clientScore >= passThreshold ? 'completed' : 'in-progress')
                 toast[status === 'completed' ? 'success' : 'info'](status === 'completed' ? 'Quiz passed' : 'Recorded attempt')
                 if (status === 'completed') {
-                  window.dispatchEvent(new CustomEvent('lms:progress-changed', { detail: { courseId: course.id, lessonId: lesson.id, status: 'completed' } }))
-                  setTimeout(() => { window.location.hash = `/lms/course?id=${encodeURIComponent(course.id)}`; setRoute('/lms/course' as unknown as import('../../store/appStore').Route) }, 250)
+                  window.dispatchEvent(
+                    new CustomEvent('lms:progress-changed', {
+                      detail: { courseId: course.id, lessonId: lesson.id, status: 'completed' },
+                    }),
+                  )
+                  setTimeout(() => {
+                    window.location.hash = `/lms/course?id=${encodeURIComponent(course.id)}`
+                    setRoute('/lms/course' as unknown as import('../../store/appStore').Route)
+                  }, 250)
                 }
               }}
             />
-          ) : (
+          ) : isSingleQuiz(lesson.quiz) ? (
             <QuizBlock
               question={lesson.quiz.question}
               options={lesson.quiz.options}
@@ -176,7 +259,21 @@ const LessonPlayer: React.FC = () => {
                 }
               }}
             />
-          )
+          ) : null
+        )}
+        {workflowRef && (
+          <TutorPanel
+            disabled={tutorState === 'sending'}
+            loading={tutorState === 'loading'}
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            onSubmit={handleTutorSubmit}
+            messages={tutorMessages}
+            error={tutorError}
+            owuiBaseUrl={lms.owuiWorkflowBaseUrl}
+            workflowRef={workflowRef}
+            breakerInfo={breakerInfo}
+          />
         )}
         {lms.apiBaseUrl && (
           <div className="mt-6 flex justify-end">
@@ -186,7 +283,12 @@ const LessonPlayer: React.FC = () => {
                 if (!course || !lesson) return
                 setSaved('saving')
                 upsertProgress({ baseUrl: lms.apiBaseUrl, token, courseId: course.id, lessonId: lesson.id, status: 'completed' })
-                  .then(() => {
+                  .then((result) => {
+                    if (!result?.ok) {
+                      setSaved('idle')
+                      toast.error('Could not mark lesson as completed. Try again shortly.')
+                      return
+                    }
                     window.dispatchEvent(
                       new CustomEvent('lms:progress-changed', {
                         detail: { courseId: course.id, lessonId: lesson.id, status: 'completed' },
@@ -200,7 +302,10 @@ const LessonPlayer: React.FC = () => {
                       setRoute('/lms/course' as unknown as import('../../store/appStore').Route)
                     }, 250)
                   })
-                  .catch(() => {})
+                  .catch(() => {
+                    setSaved('idle')
+                    toast.error('Could not mark lesson as completed. Check your connection and retry.')
+                  })
               }}
             >
               Mark as completed
@@ -216,13 +321,103 @@ const LessonPlayer: React.FC = () => {
 
 export default LessonPlayer
 
+type TutorPanelProps = {
+  prompt: string
+  onPromptChange: (value: string) => void
+  onSubmit: () => void
+  disabled?: boolean
+  loading?: boolean
+  messages: Array<{ role: 'user' | 'assistant'; content: string; sessionId?: string }>
+  error: string | null
+  owuiBaseUrl?: string
+  workflowRef: string
+  breakerInfo?: { open?: boolean; cooldownMsRemaining?: number } | null
+}
+
+const TutorPanel: React.FC<TutorPanelProps> = ({
+  prompt,
+  onPromptChange,
+  onSubmit,
+  disabled,
+  loading,
+  messages,
+  error,
+  owuiBaseUrl,
+  workflowRef,
+  breakerInfo,
+}) => {
+  return (
+    <aside className="mt-6 rounded-2xl border bg-slate-50 p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">AI Tutor</h2>
+          <p className="text-sm text-slate-600">Ask follow-up questions or clarify tricky steps.</p>
+          {breakerInfo?.open && (
+            <p className="mt-2 text-xs text-amber-600">
+              Tutor cooling down. Try again in {Math.max(1, Math.round((breakerInfo.cooldownMsRemaining ?? 0) / 1000))}s.
+            </p>
+          )}
+        </div>
+        {owuiBaseUrl && (
+          <a
+            className="text-sm text-brand hover:underline"
+            href={`${owuiBaseUrl.replace(/\/$/, '')}/workflows/${encodeURIComponent(workflowRef)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open in OWUI ↗
+          </a>
+        )}
+      </div>
+      <div className="mt-4 space-y-3">
+        {loading && <p className="text-xs text-slate-500">Loading previous tutor interactions…</p>}
+        {messages.length === 0 && !loading && (
+          <p className="text-sm text-slate-500">No tutor conversations yet. Ask the first question to get started.</p>
+        )}
+        {messages.map((msg, idx) => (
+          <div
+            key={`${msg.role}-${idx}-${msg.sessionId ?? 'local'}`}
+            className={`rounded-lg p-3 text-sm ${msg.role === 'assistant' ? 'bg-white text-slate-700 shadow-sm' : 'bg-brand text-white'}`}
+          >
+            <p className="whitespace-pre-wrap">{msg.content}</p>
+          </div>
+        ))}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+      <div className="mt-4 space-y-2">
+        <label className="block text-sm font-medium text-slate-600" htmlFor="tutorPrompt">
+          Ask the tutor
+        </label>
+        <textarea
+          id="tutorPrompt"
+          className="h-24 w-full rounded border px-3 py-2 text-sm"
+          value={prompt}
+          disabled={disabled}
+          onChange={(e) => onPromptChange(e.target.value)}
+          placeholder="E.g. Can you explain this concept in simpler terms?"
+        />
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>{prompt.trim().length} characters</span>
+          <button
+            className="rounded border border-brand px-3 py-1 text-sm text-brand hover:brightness-95"
+            disabled={disabled}
+            onClick={onSubmit}
+          >
+            {disabled ? 'Sending…' : 'Send to tutor'}
+          </button>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
 function QuizBlock({
   question,
   options,
   onSubmit,
 }: {
   question: string
-  options: { id: string; text: string; correct?: boolean }[]
+  options: LmsQuizOption[]
   onSubmit: (score: number, selected: string[]) => void | Promise<void>
 }) {
   const [checked, setChecked] = useState<Record<string, boolean>>({})
@@ -268,16 +463,28 @@ function QuizBlock({
   )
 }
 
+const isSingleQuiz = (quiz: LmsLesson['quiz']): quiz is { question: string; options: LmsQuizOption[] } =>
+  typeof quiz?.question === 'string' && Array.isArray(quiz?.options)
+
+const isMultiQuiz = (quiz: LmsLesson['quiz']): quiz is { questions: LmsQuizQuestion[] } =>
+  Array.isArray(quiz?.questions) && quiz.questions.length > 0
+
 function QuizMultiBlock({
   questions,
   onSubmit,
 }: {
-  questions: Array<{ id: string; text?: string; options: { id: string; text: string; correct?: boolean }[] }>
-  onSubmit: (results: { id: string; selected: string[] }[]) => void | Promise<void>
+  questions: LmsQuizQuestion[]
+  onSubmit: (payload: { score: number; questions: { id: string; selected: string[] }[] }) => void | Promise<void>
 }) {
   const [state, setState] = useState<Record<string, Record<string, boolean>>>({})
   const toggle = (qid: string, oid: string) => setState((s) => ({ ...s, [qid]: { ...(s[qid] ?? {}), [oid]: !(s[qid]?.[oid]) } }))
-  const build = () => questions.map((q) => ({ id: q.id, selected: Object.entries(state[q.id] ?? {}).filter(([_, v]) => v).map(([k]) => k) }))
+  const build = () =>
+    questions.map((q) => ({
+      id: q.id,
+      selected: Object.entries(state[q.id] ?? {})
+        .filter(([, isSelected]) => isSelected)
+        .map(([optionId]) => optionId),
+    }))
   return (
     <div>
       {questions.map((q) => (
@@ -295,7 +502,23 @@ function QuizMultiBlock({
           </ul>
         </div>
       ))}
-      <button className="rounded border px-3 py-1 text-sm" onClick={() => void onSubmit(build())}>Submit answers</button>
+      <button
+        className="rounded border px-3 py-1 text-sm"
+        onClick={() => {
+          const results = build()
+          const total = questions.length || 1
+          let correctCount = 0
+          questions.forEach((q) => {
+            const correctIds = new Set(q.options.filter((o) => o.correct).map((o) => o.id))
+            const selection = new Set(results.find((r) => r.id === q.id)?.selected ?? [])
+            if (correctIds.size === selection.size && [...correctIds].every((id) => selection.has(id))) correctCount += 1
+          })
+          const score = correctCount / total
+          void onSubmit({ score, questions: results })
+        }}
+      >
+        Submit answers
+      </button>
       <p className="mt-2 text-xs text-slate-500">Exact match required per question.</p>
     </div>
   )

@@ -1,0 +1,28 @@
+# Example course.yaml
+id: course-odsai-studio-basics
+version: 1
+visibility: public
+license: CC-BY-4.0
+maintainers:
+  - name: ODS Mentor
+    handle: ods-mentor
+branding:
+  banner: https://cdn.example.com/ods/banner.png
+  color: "#B13634"
+title: "ODSAi Studio Basics"
+description: |
+  A gentle introduction to studio workflows using open-source tools.
+tags: [design, ai, studio]
+cohorts:
+  - id: 2025-spring
+    startsAt: 2025-01-10
+    endsAt: 2025-05-20
+modules:
+  - id: m1
+    title: Getting Started
+    lessons:
+      - path: modules/01-getting-started/lesson.md
+  - id: m2
+    title: Prompting & Critique
+    lessons:
+      - path: modules/02-prompting/lesson.md

@@ -41,6 +41,19 @@ export class CosmosCoursesRepo implements CoursesRepo {
     }))
   }
 
+  async listAllCourses(tenantId: string): Promise<CourseDetail[]> {
+    const query: SqlQuerySpec = {
+      query: 'SELECT * FROM c WHERE c.tenantId = @tenant AND c.type = "course"',
+      parameters: [{ name: '@tenant', value: tenantId }],
+    }
+    const { resources } = await this.#client
+      .database(this.#dbName)
+      .container(this.#coursesContainer)
+      .items.query(query)
+      .fetchAll()
+    return (resources as any[]).map((c) => c as CourseDetail)
+  }
+
   async getCourse(tenantId: string, id: string): Promise<CourseDetail | null> {
     // Prefer point read with partition key when the item uses tenantId as partition
     try {
@@ -90,6 +103,32 @@ export class CosmosCoursesRepo implements CoursesRepo {
       status: r.status as any,
       score: typeof r.score === 'number' ? r.score : undefined,
       aiInteractions: Array.isArray(r.aiInteractions) ? r.aiInteractions : undefined,
+      attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
+      updatedAt: r.updatedAt ? String(r.updatedAt) : undefined,
+    }))
+  }
+
+  async listAllProgress(tenantId: string, courseId: string): Promise<ProgressRecord[]> {
+    const query: SqlQuerySpec = {
+      query: 'SELECT * FROM p WHERE p.tenantId = @tenant AND p.type = "progress" AND p.courseId = @course',
+      parameters: [
+        { name: '@tenant', value: tenantId },
+        { name: '@course', value: courseId },
+      ],
+    }
+    const { resources } = await this.#client
+      .database(this.#dbName)
+      .container(this.#progressContainer)
+      .items.query(query)
+      .fetchAll()
+    return (resources as any[]).map((r) => ({
+      userId: String(r.userId),
+      courseId: String(r.courseId),
+      lessonId: String(r.lessonId),
+      status: r.status as any,
+      score: typeof r.score === 'number' ? r.score : undefined,
+      aiInteractions: Array.isArray(r.aiInteractions) ? r.aiInteractions : undefined,
+      attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
       updatedAt: r.updatedAt ? String(r.updatedAt) : undefined,
     }))
   }
@@ -139,5 +178,52 @@ export class CosmosCoursesRepo implements CoursesRepo {
   async clearLessonProgress(tenantId: string, userId: string, courseId: string, lessonId: string): Promise<void> {
     const id = `${userId}:${courseId}:${lessonId}`
     await this.#client.database(this.#dbName).container(this.#progressContainer).item(id, tenantId).delete().catch(() => {})
+  }
+
+  async updateCourseSettings(tenantId: string, courseId: string, settings: Partial<{ modulePrereqs: boolean }>): Promise<CourseDetail | null> {
+    try {
+      const container = this.#client.database(this.#dbName).container(this.#coursesContainer)
+      const { resource } = await container.item(courseId, tenantId).read()
+      if (!resource) return null
+      const next = {
+        ...resource,
+        settings: { ...((resource as any).settings ?? {}), ...settings },
+      }
+      await container.items.upsert(next)
+      return next as CourseDetail
+    } catch {
+      return null
+    }
+  }
+
+  async updateLessonWorkflowRef(tenantId: string, courseId: string, lessonId: string, workflowRef?: string): Promise<CourseDetail | null> {
+    try {
+      const container = this.#client.database(this.#dbName).container(this.#coursesContainer)
+      const { resource } = await container.item(courseId, tenantId).read()
+      if (!resource) return null
+      const course = resource as CourseDetail
+      const modules = course.modules.map((module) => ({
+        ...module,
+        lessons: module.lessons.map((lesson) => {
+          if (lesson.id !== lessonId) return lesson
+          const payload = { ...(lesson.payload ?? {}) }
+          if (workflowRef) {
+            payload.owuiWorkflowRef = workflowRef
+          } else {
+            delete payload.owuiWorkflowRef
+          }
+          return {
+            ...lesson,
+            owuiWorkflowRef: workflowRef,
+            payload,
+          }
+        }),
+      }))
+      const next = { ...course, modules }
+      await container.items.upsert(next as any)
+      return next
+    } catch {
+      return null
+    }
   }
 }

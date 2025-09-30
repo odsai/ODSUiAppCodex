@@ -217,6 +217,55 @@ paths:
                 properties:
                   sessionId: { type: string }
                   message: { type: string }
+  /courses/{courseId}/certificate:
+    get:
+      summary: Retrieve certificate eligibility status
+      operationId: getCertificate
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eligible: { type: boolean }
+                  url: { type: string, nullable: true }
+                  stored: { type: boolean, nullable: true }
+  /owui/health:
+    get:
+      summary: Health check for OWUI integration
+      operationId: owuiHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+        '502':
+          description: Upstream error
+  /metrics:
+    get:
+      summary: Basic LMS metrics
+      operationId: getMetrics
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tutor_success_total: { type: integer }
+                  tutor_failure_total: { type: integer }
+                  tutor_latency_p95_ms: { type: number }
+                  tutor_latency_p99_ms: { type: number }
 ```
 
 _Last reviewed: 2025-09-27_

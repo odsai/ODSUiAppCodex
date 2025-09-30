@@ -9,6 +9,7 @@ export type CourseSummary = {
 
 export type Lesson = {
   id: string
+  title?: string
   type: 'video' | 'reading' | 'embed' | 'quiz' | 'lab'
   payload: Record<string, unknown>
   estimatedDuration?: number
@@ -42,11 +43,15 @@ export type ProgressRecord = {
 
 export interface CoursesRepo {
   listCourses(tenantId: string, userId: string): Promise<CourseSummary[]>
+  listAllCourses(tenantId: string): Promise<CourseDetail[]>
   getCourse(tenantId: string, id: string): Promise<CourseDetail | null>
   getProgress(tenantId: string, userId: string, courseId: string): Promise<ProgressRecord[]>
+  listAllProgress(tenantId: string, courseId: string): Promise<ProgressRecord[]>
   upsertProgress(record: ProgressRecord, tenantId: string): Promise<void>
   clearProgress(tenantId: string, userId: string, courseId: string): Promise<void>
   clearLessonProgress(tenantId: string, userId: string, courseId: string, lessonId: string): Promise<void>
+  updateCourseSettings(tenantId: string, courseId: string, settings: Partial<{ modulePrereqs: boolean }>): Promise<CourseDetail | null>
+  updateLessonWorkflowRef(tenantId: string, courseId: string, lessonId: string, workflowRef?: string): Promise<CourseDetail | null>
 }
 
 export class InMemoryCoursesRepo implements CoursesRepo {
@@ -66,8 +71,8 @@ export class InMemoryCoursesRepo implements CoursesRepo {
           title: 'Getting Started',
           order: 1,
           lessons: [
-            { id: 'm1l1', type: 'reading', payload: { body: 'Welcome!' } },
-            { id: 'm1l2', type: 'video', payload: { url: 'https://www.w3schools.com/html/mov_bbb.mp4' } },
+            { id: 'm1l1', title: 'Welcome', type: 'reading', payload: { body: 'Welcome!' } },
+            { id: 'm1l2', title: 'What is ODSAiStudio?', type: 'video', payload: { url: 'https://www.w3schools.com/html/mov_bbb.mp4' } },
           ],
         },
         {
@@ -77,6 +82,7 @@ export class InMemoryCoursesRepo implements CoursesRepo {
           lessons: [
             {
               id: 'm2q1',
+              title: 'Prompt Patterns Quiz',
               type: 'quiz',
               payload: {
                 options: [
@@ -85,6 +91,7 @@ export class InMemoryCoursesRepo implements CoursesRepo {
                   { id: 'c', text: 'Provide examples', correct: true },
                 ],
               },
+              owuiWorkflowRef: 'lesson-tutor-workflow',
             },
           ],
         },
@@ -105,12 +112,20 @@ export class InMemoryCoursesRepo implements CoursesRepo {
     }))
   }
 
+  async listAllCourses(): Promise<CourseDetail[]> {
+    return Object.values(this.#courses).map((c) => ({ ...c }))
+  }
+
   async getCourse(_tenantId: string, id: string): Promise<CourseDetail | null> {
     return this.#courses[id] ?? null
   }
 
   async getProgress(_tenantId: string, userId: string, courseId: string): Promise<ProgressRecord[]> {
     return this.#progress.filter((p) => p.userId === userId && p.courseId === courseId)
+  }
+
+  async listAllProgress(_tenantId: string, courseId: string): Promise<ProgressRecord[]> {
+    return this.#progress.filter((p) => p.courseId === courseId)
   }
 
   async upsertProgress(record: ProgressRecord, _tenantId: string): Promise<void> {
@@ -132,6 +147,42 @@ export class InMemoryCoursesRepo implements CoursesRepo {
 
   async clearLessonProgress(_tenantId: string, userId: string, courseId: string, lessonId: string): Promise<void> {
     this.#progress = this.#progress.filter((p) => !(p.userId === userId && p.courseId === courseId && p.lessonId === lessonId))
+  }
+
+  async updateCourseSettings(_tenantId: string, courseId: string, settings: Partial<{ modulePrereqs: boolean }>): Promise<CourseDetail | null> {
+    const existing = this.#courses[courseId]
+    if (!existing) return null
+    const next: CourseDetail = {
+      ...existing,
+      settings: { ...(existing.settings ?? {}), ...settings },
+    }
+    this.#courses[courseId] = next
+    return next
+  }
+
+  async updateLessonWorkflowRef(_tenantId: string, courseId: string, lessonId: string, workflowRef?: string): Promise<CourseDetail | null> {
+    const existing = this.#courses[courseId]
+    if (!existing) return null
+    const modules = existing.modules.map((module) => ({
+      ...module,
+      lessons: module.lessons.map((lesson) => {
+        if (lesson.id !== lessonId) return lesson
+        const payload = { ...(lesson.payload ?? {}) }
+        if (workflowRef) {
+          payload.owuiWorkflowRef = workflowRef
+        } else {
+          delete payload.owuiWorkflowRef
+        }
+        return {
+          ...lesson,
+          owuiWorkflowRef: workflowRef,
+          payload,
+        }
+      }),
+    }))
+    const next: CourseDetail = { ...existing, modules }
+    this.#courses[courseId] = next
+    return next
   }
 }
 

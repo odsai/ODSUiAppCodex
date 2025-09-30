@@ -2,11 +2,37 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { OwuiAdapter } from '../clients/owuiAdapter'
 import { getCoursesRepo } from '../data/coursesRepo'
-import { getPassThreshold, getMaxQuizAttempts } from '../config/env'
+import { getPassThreshold, getMaxQuizAttempts, getCertificateStorageDir } from '../config/env'
+import { recordTutorFailure, recordTutorSuccess, metricsSnapshot } from '../server/metrics'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit') as any
+const fs = require('fs')
+const fsPromises = fs.promises
+const path = require('path')
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+}
+
+function sanitizeSegment(segment: string) {
+  return segment.replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
+function buildCertificateFilePath(baseDir: string, tenantId: string | undefined, courseId: string, userId: string, ext: string) {
+  const dir = path.join(baseDir, sanitizeSegment(tenantId ?? 'tenant'), sanitizeSegment(courseId))
+  const filePath = path.join(dir, `${sanitizeSegment(userId)}.${ext}`)
+  return { dir, filePath }
+}
+
+function extractOwuiWorkflowRef(lesson: unknown): string | undefined {
+  if (typeof lesson !== 'object' || !lesson) return undefined
+  const direct = (lesson as any).owuiWorkflowRef
+  if (typeof direct === 'string' && direct.trim()) return direct.trim()
+  const payload = (lesson as any).payload
+  if (payload && typeof payload === 'object') {
+    const nested = (payload as any).owuiWorkflowRef
+    if (typeof nested === 'string' && nested.trim()) return nested.trim()
+  }
+  return undefined
 }
 
 const courseSummarySchema = z.object({
@@ -37,6 +63,7 @@ const courseDetailSchema = courseSummarySchema.extend({
       ),
     }),
   ),
+  settings: z.object({ modulePrereqs: z.boolean().optional() }).partial().optional(),
 })
 
 const progressSchema = z.object({
@@ -66,6 +93,31 @@ export function registerCourseRoutes(app: FastifyInstance) {
     app.log.warn('OWUI not configured; tutor endpoint will return 503')
   }
   const repo = getCoursesRepo()
+
+  app.get('/metrics', async (_request, reply) => {
+    reply.header('Content-Type', 'application/json; charset=utf-8')
+    return metricsSnapshot()
+  })
+
+  app.get('/owui/health', async (request, reply) => {
+    const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
+    if (!isAdmin) return reply.forbidden('Admin only')
+    if (!owui) {
+      return reply.code(503).send({ status: 'unconfigured' })
+    }
+    try {
+      const data = await owui.health()
+      const breaker = typeof owui.breakerInfo === 'function' ? owui.breakerInfo() : undefined
+      return { status: 'ok', data, ...(breaker ? { breaker } : {}) }
+    } catch (error) {
+      request.log.warn({ error }, 'OWUI health check failed')
+      return reply.code(502).send({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'OWUI health check failed',
+      })
+    }
+  })
+
   app.get('/courses', async (request) => {
     request.log.info({ tenantId: request.tenantId }, 'list courses')
     const list = await repo.listCourses(request.tenantId, request.user?.sub ?? 'anonymous')
@@ -84,6 +136,14 @@ export function registerCourseRoutes(app: FastifyInstance) {
     const params = z.object({ courseId: z.string() }).parse(request.params)
     request.log.info({ tenantId: request.tenantId, courseId: params.courseId, user: request.user?.sub }, 'get progress')
     return await repo.getProgress(request.tenantId, request.user?.sub ?? 'anonymous', params.courseId)
+  })
+
+  app.get('/courses/:courseId/progress/all', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
+    if (!isAdmin) return reply.forbidden('Admin only')
+    request.log.info({ tenantId: request.tenantId, courseId: params.courseId }, 'get all progress')
+    return await repo.listAllProgress(request.tenantId, params.courseId)
   })
 
   app.post('/courses/:courseId/progress', async (request, reply) => {
@@ -121,6 +181,16 @@ export function registerCourseRoutes(app: FastifyInstance) {
     return reply.code(204).send()
   })
 
+  app.patch('/courses/:courseId/settings', async (request, reply) => {
+    const params = z.object({ courseId: z.string() }).parse(request.params)
+    const body = z.object({ modulePrereqs: z.boolean().optional() }).parse(request.body)
+    const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
+    if (!isAdmin) return reply.forbidden('Admin only')
+    const updated = await repo.updateCourseSettings(request.tenantId, params.courseId, body)
+    if (!updated) return reply.notFound('Course not found')
+    return courseDetailSchema.parse(updated)
+  })
+
   app.delete('/courses/:courseId/lessons/:lessonId/attempts', async (request, reply) => {
     const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
     const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
@@ -128,6 +198,16 @@ export function registerCourseRoutes(app: FastifyInstance) {
     const userId = request.user?.sub ?? 'anonymous'
     await repo.clearLessonProgress(request.tenantId, userId, params.courseId, params.lessonId)
     return reply.code(204).send()
+  })
+
+  app.patch('/courses/:courseId/lessons/:lessonId/owui', async (request, reply) => {
+    const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
+    const body = z.object({ workflowRef: z.string().trim().optional() }).parse(request.body)
+    const isAdmin = request.user?.roles?.includes('admin') || process.env.AUTH_DEV_ALLOW === '1'
+    if (!isAdmin) return reply.forbidden('Admin only')
+    const updated = await repo.updateLessonWorkflowRef(request.tenantId, params.courseId, params.lessonId, body.workflowRef)
+    if (!updated) return reply.notFound('Course or lesson not found')
+    return courseDetailSchema.parse(updated)
   })
 
   app.get('/courses/:courseId/certificate', async (request, reply) => {
@@ -149,8 +229,20 @@ export function registerCourseRoutes(app: FastifyInstance) {
         }
         if (!eligible) break
       }
+      const storageDir = getCertificateStorageDir()
+      let stored = false
+      if (storageDir && eligible) {
+        const { filePath } = buildCertificateFilePath(
+          storageDir,
+          request.tenantId,
+          params.courseId,
+          request.user?.sub ?? 'anonymous',
+          'pdf',
+        )
+        stored = fs.existsSync(filePath)
+      }
       const url = eligible ? `/courses/${encodeURIComponent(params.courseId)}/certificate/pdf` : null
-      return { eligible, url }
+      return { eligible, url, stored }
     } catch {
       return { eligible: false, url: null }
     }
@@ -188,6 +280,17 @@ export function registerCourseRoutes(app: FastifyInstance) {
       <p>This certifies that <strong>${escapeHtml(request.user?.sub ?? 'Learner')}</strong> has successfully completed the course.</p>
       <div class="meta">Issued on ${new Date().toLocaleDateString()}</div>
       </div></body></html>`
+      const storageDir = getCertificateStorageDir()
+      if (storageDir) {
+        try {
+          const userId = request.user?.sub ?? 'anonymous'
+          const { dir, filePath } = buildCertificateFilePath(storageDir, request.tenantId, params.courseId, userId, 'html')
+          await fsPromises.mkdir(dir, { recursive: true })
+          await fsPromises.writeFile(filePath, html, 'utf8')
+        } catch (err) {
+          request.log.warn({ err }, 'failed to persist HTML certificate')
+        }
+      }
       reply.header('Content-Type', 'text/html; charset=utf-8').send(html)
     } catch (e) {
       return reply.internalServerError('Failed to render certificate')
@@ -217,8 +320,10 @@ export function registerCourseRoutes(app: FastifyInstance) {
 
       reply.header('Content-Type', 'application/pdf')
       reply.header('Content-Disposition', `attachment; filename=certificate-${params.courseId}.pdf`)
+
+      const chunks: Buffer[] = []
       const doc = new PDFDocument({ size: 'A4', margin: 50 })
-      doc.pipe(reply.raw)
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk))
 
       // Header
       doc
@@ -254,7 +359,26 @@ export function registerCourseRoutes(app: FastifyInstance) {
       doc.moveDown(0.5)
       doc.fontSize(10).fillColor('#6b7280').text('ODSAiStudio LMS', { align: 'center' })
 
-      doc.end()
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        doc.on('end', async () => {
+          try {
+            const buffer = Buffer.concat(chunks)
+            const storageDir = getCertificateStorageDir()
+            if (storageDir) {
+              const userId = request.user?.sub ?? 'anonymous'
+              const { dir, filePath } = buildCertificateFilePath(storageDir, request.tenantId, params.courseId, userId, 'pdf')
+              await fsPromises.mkdir(dir, { recursive: true })
+              await fsPromises.writeFile(filePath, buffer)
+            }
+            reply.send(buffer)
+            resolvePromise()
+          } catch (err) {
+            rejectPromise(err)
+          }
+        })
+        doc.on('error', rejectPromise)
+        doc.end()
+      })
     } catch (e) {
       request.log.error({ e }, 'Failed generating certificate PDF')
       return reply.internalServerError('Failed to render certificate PDF')
@@ -264,19 +388,78 @@ export function registerCourseRoutes(app: FastifyInstance) {
   app.post('/courses/:courseId/lessons/:lessonId/tutor', async (request, reply) => {
     const params = z.object({ courseId: z.string(), lessonId: z.string() }).parse(request.params)
     const body = z.object({ prompt: z.string().min(1) }).parse(request.body)
-    request.log.info({ tenantId: request.tenantId, params, body }, 'invoke tutor (stub)')
+    request.log.info({ tenantId: request.tenantId, params }, 'invoke tutor')
     if (!owui) {
       reply.code(503)
       return { error: 'OWUI not configured' }
     }
-    const lessonContext = JSON.stringify({ courseId: params.courseId, lessonId: params.lessonId })
-    const response = await owui.invokeTutor({
-      workflowId: 'lesson-tutor-workflow',
-      lessonContext,
-      prompt: body.prompt,
-      userId: request.user?.sub ?? 'anonymous',
-    })
-    return { sessionId: response.sessionId, message: response.reply }
+
+    const userId = request.user?.sub ?? 'anonymous'
+
+    try {
+      if (owui.isBreakerOpen()) {
+        const info = owui.breakerInfo()
+        reply.code(503)
+        return { error: 'OWUI temporarily unavailable (cooling down)', breaker: info }
+      }
+      const course = await repo.getCourse(request.tenantId, params.courseId)
+      if (!course) return reply.notFound('Course not found')
+      const lesson = (course.modules ?? []).flatMap((m) => m.lessons).find((l) => l.id === params.lessonId)
+      if (!lesson) return reply.notFound('Lesson not found')
+
+      const workflowRef = extractOwuiWorkflowRef(lesson)
+      if (!workflowRef) {
+        return reply.badRequest('Lesson has no tutor workflow configured')
+      }
+
+      const lessonContext = JSON.stringify({
+        courseId: params.courseId,
+        lessonId: params.lessonId,
+        courseTitle: course.title,
+        lessonTitle: (lesson as any).title ?? lesson.id,
+      })
+
+      const t0 = Date.now()
+      const response = await owui.invokeTutor({
+        workflowId: workflowRef,
+        lessonContext,
+        prompt: body.prompt,
+        userId,
+      })
+      const latency = Date.now() - t0
+      try { recordTutorSuccess(latency) } catch {}
+
+      // Persist interaction snapshot; do not fail the request on persistence errors.
+      try {
+        const currentProgress = await repo.getProgress(request.tenantId, userId, params.courseId)
+        const existing = currentProgress.find((p) => p.lessonId === params.lessonId)
+        const interactions = [...(existing?.aiInteractions ?? []), {
+          sessionId: response.sessionId,
+          workflowId: workflowRef,
+          summary: response.reply?.slice(0, 4000) ?? '',
+        }]
+        await repo.upsertProgress({
+          userId,
+          courseId: params.courseId,
+          lessonId: params.lessonId,
+          status: existing?.status ?? 'in-progress',
+          score: existing?.score,
+          aiInteractions: interactions,
+        }, request.tenantId)
+      } catch (persistErr) {
+        request.log.warn({ err: persistErr }, 'failed to store tutor interaction')
+      }
+
+      return { sessionId: response.sessionId, message: response.reply, workflowId: workflowRef, latency }
+    } catch (error) {
+      try { recordTutorFailure() } catch {}
+      request.log.error({ err: error, tenantId: request.tenantId, params }, 'OWUI tutor invocation failed')
+      if (error instanceof Error && /OWUI/.test(error.message)) {
+        reply.code(502)
+        return { error: error.message }
+      }
+      throw error
+    }
   })
 
   app.post('/courses/:courseId/lessons/:lessonId/quiz', async (request, reply) => {

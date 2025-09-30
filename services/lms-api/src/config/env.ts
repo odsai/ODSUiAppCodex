@@ -12,3 +12,24 @@ export function getMaxQuizAttempts(): number {
   return Math.max(1, n)
 }
 
+export function getCertificateStorageDir(): string | null {
+  return process.env.CERT_STORAGE_DIR ?? null
+}
+
+export function getOwuiRetryMax(): number {
+  const raw = process.env.OWUI_RETRY_MAX
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n > 0 ? n : 3
+}
+
+export function getOwuiBreakerThreshold(): number {
+  const raw = process.env.OWUI_BREAKER_THRESHOLD
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n > 0 ? n : 5
+}
+
+export function getOwuiBreakerCooldownMs(): number {
+  const raw = process.env.OWUI_BREAKER_COOLDOWN_MS
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n > 0 ? n : 60000
+}

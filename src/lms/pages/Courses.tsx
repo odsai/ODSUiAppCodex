@@ -10,12 +10,13 @@ const Courses: React.FC = () => {
   const recentLimit = useLmsStore((s) => s.settings.recentCoursesLimit)
   const lms = useAppStore((s) => s.appSettings.lms)
   const setRoute = useAppStore((s) => s.setRoute)
+  const token = useAppStore((s) => s.token)
 
   useEffect(() => {
     if (!lms.apiBaseUrl) return
     let cancelled = false
     setLoading(true)
-    getCourses(lms.apiBaseUrl)
+    getCourses({ apiBaseUrl: lms.apiBaseUrl, token })
       .then((list) => {
         if (!cancelled && list.length) setCourses(list)
       })
@@ -23,7 +24,7 @@ const Courses: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [lms.apiBaseUrl, setCourses])
+  }, [lms.apiBaseUrl, setCourses, token])
 
   const list = useMemo(() => courses.slice(0, Math.max(recentLimit, courses.length)), [courses, recentLimit])
 
