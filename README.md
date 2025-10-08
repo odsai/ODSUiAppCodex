@@ -1,4 +1,4 @@
-# ODSUiAppCodex
+# ODSAiStudioCodex
 
 [![CI](https://github.com/odsai/ODSUiAppCodex/actions/workflows/ci.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/ci.yml)
 [![Azure SWA Deploy](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml/badge.svg)](https://github.com/odsai/ODSUiAppCodex/actions/workflows/azure-static-web-apps.yml)
@@ -6,11 +6,11 @@
 CI/Deploy: GitHub Actions with AZURE_STATIC_WEB_APPS_API_TOKEN.
 
 Repository: https://github.com/odsai/ODSUiAppCodex
-Live: https://studio.opendesignschool.ai
+Live: https://opendesignschool.ai
 
 ## Overview
-ODSUiAppCodex hosts the ODSUi Shell app, a unified interface for open-source AI tools in Design Pedagogy and Practice.
-Primary site: https://studio.opendesignschool.ai
+ODSAiStudio hosts the ODSUi Shell app, a unified interface for open-source AI tools in Design Pedagogy and Practice.
+Primary site: https://opendesignschool.ai
 
 ## Tech Stack
 - React 18 + TypeScript + Vite
@@ -24,19 +24,6 @@ Primary site: https://studio.opendesignschool.ai
 npm install
 npm run dev
 ```
-
-## Deploy to Azure SWA
-This repo includes a ready-to-use GitHub Actions workflow: `.github/workflows/azure-static-web-apps.yml`.
-
-1) Create an Azure Static Web App (Build preset: Vite)
-2) In GitHub → Settings → Secrets and variables → Actions, add:
-   - `AZURE_STATIC_WEB_APPS_API_TOKEN` (value = SWA Deployment Token from Azure)
-3) Push to `main` — the workflow builds (`npm ci && npm run build`) and deploys `dist/`.
-
-Notes
-- `app_location`: `/` (repo root)
-- `output_location`: `dist`
-- No API used (leave `api_location` empty)
 
 ## Content Security Policy (CSP)
 The app ships with a safe-by-default CSP in `staticwebapp.config.json`. When embedding external tools (e.g., OWUI, Penpot, Flowise), whitelist their domains under `frame-src` and `connect-src`.
