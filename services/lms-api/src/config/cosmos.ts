@@ -4,6 +4,7 @@ export type CosmosConfig = {
   database: string
   coursesContainer: string
   progressContainer: string
+  workspaceContainer: string
 }
 
 export function getCosmosConfig(): CosmosConfig {
@@ -12,9 +13,9 @@ export function getCosmosConfig(): CosmosConfig {
   const database = process.env.COSMOS_DB || 'odsui-lms'
   const coursesContainer = process.env.COSMOS_CONTAINER_COURSES || 'courses'
   const progressContainer = process.env.COSMOS_CONTAINER_PROGRESS || 'progress'
+  const workspaceContainer = process.env.COSMOS_CONTAINER_WORKSPACE || 'workspace'
   if (!endpoint || !key) {
     throw new Error('COSMOS_ENDPOINT and COSMOS_KEY are required when DATA_BACKEND=cosmos')
   }
-  return { endpoint, key, database, coursesContainer, progressContainer }
+  return { endpoint, key, database, coursesContainer, progressContainer, workspaceContainer }
 }
-

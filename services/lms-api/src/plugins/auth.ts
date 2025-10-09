@@ -15,7 +15,8 @@ function buildDevVerifier() {
     const [scheme, token] = authorization.split(' ')
     if (scheme?.toLowerCase() !== 'bearer' || !token) return null
     const isAdmin = token.toLowerCase().includes('admin')
-    return { sub: 'dev-user', roles: isAdmin ? ['admin'] : ['learner'], tenantId: 'mock-tenant' }
+    const tenant = (process.env.AUTH_DEV_TENANT_ID || 'mock-tenant').trim() || 'mock-tenant'
+    return { sub: 'dev-user', roles: isAdmin ? ['admin'] : ['learner'], tenantId: tenant }
   }
 }
 
@@ -74,6 +75,9 @@ export const authPlugin = fp(async (app) => {
   app.decorateRequest('user', null as VerifiedUser | null)
 
   const devMode = process.env.AUTH_DEV_ALLOW === '1'
+  if (process.env.NODE_ENV === 'production' && devMode) {
+    throw new Error('AUTH_DEV_ALLOW must be disabled in production environments')
+  }
   const verifier = devMode ? buildDevVerifier() : buildAzureVerifier()
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {

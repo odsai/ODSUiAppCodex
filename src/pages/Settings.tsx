@@ -3,6 +3,7 @@ import { useAppStore, type AppConfig, type AppSettings, type ColorPalette } from
 import { toast } from '../store/toastStore'
 import { ping } from '../utils/health'
 import { ICON_OPTIONS, resolveIcon } from '../utils/iconCatalog'
+import { saveWorkspaceSettings } from '../utils/settingsClient'
 
 const PROTECTED_APP_IDS = new Set(['app-dashboard', 'app-settings'])
 
@@ -949,8 +950,11 @@ export default function Settings() {
   const isAdmin = !!user?.roles?.includes('admin')
   const appSettings = useAppStore((s) => s.appSettings)
   const updateSettings = useAppStore((s) => s.updateSettings)
+  const hydrateSettings = useAppStore((s) => s.hydrateSettings)
   const setTheme = useAppStore((s) => s.setTheme)
   const theme = useAppStore((s) => s.theme)
+  const token = useAppStore((s) => s.token)
+  const settingsVersion = useAppStore((s) => s.settingsVersion)
 
   const [draft, setDraft] = useState<AppSettings>(() => cloneSettings(appSettings))
   const [activeTab, setActiveTab] = useState<TabId>('apps')
@@ -1001,10 +1005,31 @@ export default function Settings() {
     if (!validateDraft()) return
     setSaving(true)
     try {
-      updateSettings(cloneSettings(draft))
-      toast.success('Settings saved')
-    } catch {
-      toast.error('Failed to save settings')
+      const baseUrl = (draft.lms.apiBaseUrl || appSettings.lms.apiBaseUrl || '').trim()
+      const tenantId = user?.tenantId || draft.auth.tenantId || appSettings.auth.tenantId || ''
+
+      if (baseUrl && tenantId) {
+        try {
+          const result = await saveWorkspaceSettings({
+            baseUrl,
+            token,
+            tenantId,
+            settings: cloneSettings(draft),
+            version: settingsVersion ?? undefined,
+          })
+          hydrateSettings(result.settings, result.version)
+          toast.success('Settings saved')
+        } catch (error) {
+          if (error instanceof Error && error.message === 'VERSION_CONFLICT') {
+            toast.error('Settings changed in another session. Refresh and try again.')
+          } else {
+            toast.error('Failed to sync settings')
+          }
+        }
+      } else {
+        updateSettings(cloneSettings(draft))
+        toast.success('Settings saved locally')
+      }
     } finally {
       setSaving(false)
     }

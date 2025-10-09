@@ -1,6 +1,6 @@
 # Privacy & Data Protection Policy (ADR‑lite)
 
-Status: Draft v1.0
+Status: Approved v1.0 (2025-10-10)
 
 ## Scope
 - Applies to all ODSUi/ODS Ai LMS services, websites, and CI workflows.
@@ -42,4 +42,3 @@ Status: Draft v1.0
 
 ---
 This document evolves with practice; log changes in `docs/PROJECT_HISTORY.md`.
-

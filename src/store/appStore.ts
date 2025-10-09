@@ -430,6 +430,7 @@ type AppState = {
   projects: Project[]
   courses: Course[]
   appSettings: AppSettings
+  settingsVersion: number | null
 
   // Actions
   setTheme: (t: AppState['theme']) => void
@@ -441,6 +442,7 @@ type AppState = {
   selectProject: (id: string) => void
   selectCourse: (id: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
+  hydrateSettings: (settings: AppSettings, version?: number | null) => void
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -468,6 +470,7 @@ export const useAppStore = create<AppState>()(
         { id: 'course-305', title: 'Prompt Engineering', description: 'Patterns and practices', updatedAt: now() },
       ],
       appSettings: createDefaultAppSettings(),
+      settingsVersion: null,
 
       // Actions
       setTheme: (t) => set({ theme: t }),
@@ -563,7 +566,11 @@ export const useAppStore = create<AppState>()(
           auth: { ...current.auth, ...patch?.auth },
           updatedAt: now(),
         }
-        set({ appSettings: normalizeAppSettings(merged) })
+        set({ appSettings: normalizeAppSettings(merged), settingsVersion: get().settingsVersion })
+      },
+
+      hydrateSettings: (settings, version) => {
+        set({ appSettings: normalizeAppSettings(settings), settingsVersion: version ?? null })
       },
     }),
     {
@@ -588,6 +595,7 @@ export const useAppStore = create<AppState>()(
         appSettings: state.appSettings,
         activeProjectId: state.activeProjectId,
         activeCourseId: state.activeCourseId,
+        settingsVersion: state.settingsVersion,
       }),
     }
   )

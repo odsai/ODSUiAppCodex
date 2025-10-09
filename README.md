@@ -12,6 +12,13 @@ Live: https://opendesignschool.ai
 ODSAiStudio hosts the ODSUi Shell app, a unified interface for open-source AI tools in Design Pedagogy and Practice.
 Primary site: https://opendesignschool.ai
 
+> **Architecture at a glance:**  
+> The repo ships two deployables that work together:
+> - **ODSUi shell (React SPA)** — built with Vite and deployed to Azure Static Web Apps (static hosting + CDN).
+> - **ODSUi LMS API** — a Node/Fastify backend (under `services/lms-api/`) packaged as a container for Azure Container Apps. It supplies courses, progress, tutor flows, certificates, etc.
+>
+> The shell can run in “mock” mode for demos, but production requires deploying the LMS API separately and pointing the shell’s settings (`Settings → LMS`) at that API endpoint.
+
 ## Tech Stack
 - React 18 + TypeScript + Vite
 - TailwindCSS

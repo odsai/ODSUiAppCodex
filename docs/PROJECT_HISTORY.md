@@ -15,3 +15,6 @@
 - 2025-09-27: Added tutor resiliency (retries + circuit breaker), `/metrics` endpoint, and OWUI canary workflow; surfaced metrics in Settings.
 - 2025-09-27: Added policy docs (Privacy, Licensing, GitHub/HF Usage) and initial `course.yaml` + lesson front‑matter spec with templates.
 - 2025-09-27: Documented certificate pipeline (`docs/certificates.md`) and improved stored download UX.
+- 2025-10-10: Hardened SWA deployment pipeline with environment-gated workflows and split prod/dev CSP configs.
+- 2025-10-10: Added App Insights telemetry hooks (SPA + LMS API) and established incident/data deletion runbooks with finalized privacy policy.
+- 2025-10-15: Introduced optional Redis cache and alerting Bicep modules plus alerting runbook to close remaining enterprise blockers.

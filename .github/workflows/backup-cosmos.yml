@@ -1,0 +1,29 @@
+name: Backup Cosmos (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      resourceGroup:
+        description: 'Resource group'
+        required: true
+      accountName:
+        description: 'Cosmos account name'
+        required: true
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Show backup policy
+        run: |
+          az cosmosdb show -n ${{ github.event.inputs.accountName }} -g ${{ github.event.inputs.resourceGroup }} --query backupPolicy
+
+      - name: Note
+        run: |
+          echo "This workflow is a minimal helper for visibility. Use PITR restore per docs/ops/BACKUP_RECOVERY.md when needed."
+

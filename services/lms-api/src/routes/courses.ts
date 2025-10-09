@@ -2,25 +2,13 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { OwuiAdapter } from '../clients/owuiAdapter'
 import { getCoursesRepo } from '../data/coursesRepo'
-import { getPassThreshold, getMaxQuizAttempts, getCertificateStorageDir } from '../config/env'
+import { getPassThreshold, getMaxQuizAttempts } from '../config/env'
 import { recordTutorFailure, recordTutorSuccess, metricsSnapshot } from '../server/metrics'
+import { certificateExists, storeCertificatePdf } from '../services/certificateStore'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit') as any
-const fs = require('fs')
-const fsPromises = fs.promises
-const path = require('path')
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
-}
-
-function sanitizeSegment(segment: string) {
-  return segment.replace(/[^a-zA-Z0-9_-]/g, '_')
-}
-
-function buildCertificateFilePath(baseDir: string, tenantId: string | undefined, courseId: string, userId: string, ext: string) {
-  const dir = path.join(baseDir, sanitizeSegment(tenantId ?? 'tenant'), sanitizeSegment(courseId))
-  const filePath = path.join(dir, `${sanitizeSegment(userId)}.${ext}`)
-  return { dir, filePath }
 }
 
 function extractOwuiWorkflowRef(lesson: unknown): string | undefined {
@@ -229,18 +217,10 @@ export function registerCourseRoutes(app: FastifyInstance) {
         }
         if (!eligible) break
       }
-      const storageDir = getCertificateStorageDir()
-      let stored = false
-      if (storageDir && eligible) {
-        const { filePath } = buildCertificateFilePath(
-          storageDir,
-          request.tenantId,
-          params.courseId,
-          request.user?.sub ?? 'anonymous',
-          'pdf',
-        )
-        stored = fs.existsSync(filePath)
-      }
+      const userId = request.user?.sub ?? 'anonymous'
+      const stored = eligible
+        ? await certificateExists({ tenantId: request.tenantId, courseId: params.courseId, userId })
+        : false
       const url = eligible ? `/courses/${encodeURIComponent(params.courseId)}/certificate/pdf` : null
       return { eligible, url, stored }
     } catch {
@@ -280,17 +260,6 @@ export function registerCourseRoutes(app: FastifyInstance) {
       <p>This certifies that <strong>${escapeHtml(request.user?.sub ?? 'Learner')}</strong> has successfully completed the course.</p>
       <div class="meta">Issued on ${new Date().toLocaleDateString()}</div>
       </div></body></html>`
-      const storageDir = getCertificateStorageDir()
-      if (storageDir) {
-        try {
-          const userId = request.user?.sub ?? 'anonymous'
-          const { dir, filePath } = buildCertificateFilePath(storageDir, request.tenantId, params.courseId, userId, 'html')
-          await fsPromises.mkdir(dir, { recursive: true })
-          await fsPromises.writeFile(filePath, html, 'utf8')
-        } catch (err) {
-          request.log.warn({ err }, 'failed to persist HTML certificate')
-        }
-      }
       reply.header('Content-Type', 'text/html; charset=utf-8').send(html)
     } catch (e) {
       return reply.internalServerError('Failed to render certificate')
@@ -318,67 +287,64 @@ export function registerCourseRoutes(app: FastifyInstance) {
       }
       if (!eligible) return reply.forbidden('Not eligible yet')
 
-      reply.header('Content-Type', 'application/pdf')
-      reply.header('Content-Disposition', `attachment; filename=certificate-${params.courseId}.pdf`)
+      const renderPdf = async () => {
+        const chunks: Buffer[] = []
+        const doc = new PDFDocument({ size: 'A4', margin: 50 })
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk))
 
-      const chunks: Buffer[] = []
-      const doc = new PDFDocument({ size: 'A4', margin: 50 })
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk))
+        // Header
+        doc
+          .fontSize(24)
+          .fillColor('#065f46')
+          .text('Certificate of Completion', { align: 'center' })
+        doc.moveDown(0.5)
+        doc
+          .fontSize(16)
+          .fillColor('#047857')
+          .text(course.title || 'Course', { align: 'center' })
+        doc.moveDown(2)
 
-      // Header
-      doc
-        .fontSize(24)
-        .fillColor('#065f46')
-        .text('Certificate of Completion', { align: 'center' })
-      doc.moveDown(0.5)
-      doc
-        .fontSize(16)
-        .fillColor('#047857')
-        .text(course.title || 'Course', { align: 'center' })
-      doc.moveDown(2)
+        // Body
+        const learner = request.user?.sub ?? 'Learner'
+        doc.fontSize(12).fillColor('#111827')
+        doc.text('This certifies that', { align: 'center' })
+        doc.moveDown(0.3)
+        doc.fontSize(18).fillColor('#111827').text(learner, { align: 'center' })
+        doc.moveDown(0.3)
+        doc.fontSize(12).fillColor('#111827').text('has successfully completed the course.', { align: 'center' })
+        doc.moveDown(1.5)
 
-      // Body
-      const learner = request.user?.sub ?? 'Learner'
-      doc.fontSize(12).fillColor('#111827')
-      doc.text('This certifies that', { align: 'center' })
-      doc.moveDown(0.3)
-      doc.fontSize(18).fillColor('#111827').text(learner, { align: 'center' })
-      doc.moveDown(0.3)
-      doc.fontSize(12).fillColor('#111827').text('has successfully completed the course.', { align: 'center' })
-      doc.moveDown(1.5)
+        // Meta
+        const issued = new Date().toLocaleString()
+        doc.fontSize(10).fillColor('#374151').text(`Issued on: ${issued}`, { align: 'center' })
+        doc.moveDown(0.5)
+        doc.fontSize(10).fillColor('#374151').text(`Tenant: ${request.tenantId || 'N/A'}`, { align: 'center' })
 
-      // Meta
-      const issued = new Date().toLocaleString()
-      doc.fontSize(10).fillColor('#374151').text(`Issued on: ${issued}`, { align: 'center' })
-      doc.moveDown(0.5)
-      doc.fontSize(10).fillColor('#374151').text(`Tenant: ${request.tenantId || 'N/A'}`, { align: 'center' })
+        // Footer line
+        doc.moveDown(2)
+        doc.strokeColor('#10b981').lineWidth(2).moveTo(100, doc.y).lineTo(495, doc.y).stroke()
+        doc.moveDown(0.5)
+        doc.fontSize(10).fillColor('#6b7280').text('ODSAiStudio LMS', { align: 'center' })
 
-      // Footer line
-      doc.moveDown(2)
-      doc.strokeColor('#10b981').lineWidth(2).moveTo(100, doc.y).lineTo(495, doc.y).stroke()
-      doc.moveDown(0.5)
-      doc.fontSize(10).fillColor('#6b7280').text('ODSAiStudio LMS', { align: 'center' })
-
-      await new Promise<void>((resolvePromise, rejectPromise) => {
-        doc.on('end', async () => {
-          try {
-            const buffer = Buffer.concat(chunks)
-            const storageDir = getCertificateStorageDir()
-            if (storageDir) {
-              const userId = request.user?.sub ?? 'anonymous'
-              const { dir, filePath } = buildCertificateFilePath(storageDir, request.tenantId, params.courseId, userId, 'pdf')
-              await fsPromises.mkdir(dir, { recursive: true })
-              await fsPromises.writeFile(filePath, buffer)
-            }
-            reply.send(buffer)
-            resolvePromise()
-          } catch (err) {
-            rejectPromise(err)
-          }
+        return await new Promise<Buffer>((resolvePromise, rejectPromise) => {
+          doc.on('end', () => resolvePromise(Buffer.concat(chunks)))
+          doc.on('error', rejectPromise)
+          doc.end()
         })
-        doc.on('error', rejectPromise)
-        doc.end()
+      }
+
+      const pdfBuffer = await renderPdf()
+      const userId = request.user?.sub ?? 'anonymous'
+      await storeCertificatePdf(pdfBuffer, {
+        tenantId: request.tenantId,
+        courseId: params.courseId,
+        userId,
       })
+
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename=certificate-${params.courseId}.pdf`)
+        .send(pdfBuffer)
     } catch (e) {
       request.log.error({ e }, 'Failed generating certificate PDF')
       return reply.internalServerError('Failed to render certificate PDF')

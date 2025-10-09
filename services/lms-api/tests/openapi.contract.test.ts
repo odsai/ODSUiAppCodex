@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 import { createApp } from '../src/server/app'
 
 let app: Awaited<ReturnType<typeof createApp>>
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 beforeAll(async () => {
   process.env.AUTH_DEV_ALLOW = '1'
@@ -17,7 +21,14 @@ afterAll(async () => {
 })
 
 describe('OpenAPI contract (basic path coverage)', () => {
-  const specPath = path.resolve(process.cwd(), '../../LMS/API-SCHEMA.md')
+  const candidates = [
+    path.resolve(process.cwd(), 'LMS/API-SCHEMA.md'),
+    path.resolve(__dirname, '../../LMS/API-SCHEMA.md'),
+  ]
+  const specPath = candidates.find((candidate) => fs.existsSync(candidate))
+  if (!specPath) {
+    throw new Error('LMS/API-SCHEMA.md not found')
+  }
   const raw = fs.readFileSync(specPath, 'utf8')
   const yamlBlockMatch = raw.match(/```yaml([\s\S]*?)```/)
   const source = yamlBlockMatch ? yamlBlockMatch[1] : raw

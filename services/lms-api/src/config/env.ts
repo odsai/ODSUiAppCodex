@@ -12,8 +12,25 @@ export function getMaxQuizAttempts(): number {
   return Math.max(1, n)
 }
 
-export function getCertificateStorageDir(): string | null {
-  return process.env.CERT_STORAGE_DIR ?? null
+export type CertificateStorageStrategy =
+  | { type: 'filesystem'; directory: string }
+  | { type: 'azure'; connectionString: string; container: string }
+
+export function getCertificateStorageStrategy(): CertificateStorageStrategy | null {
+  const mode = (process.env.CERT_STORAGE_MODE || '').toLowerCase()
+  if (mode === 'azure') {
+    const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || ''
+    const container = process.env.CERT_STORAGE_CONTAINER || 'certificates'
+    if (!connectionString) {
+      throw new Error('AZURE_STORAGE_CONNECTION_STRING is required when CERT_STORAGE_MODE=azure')
+    }
+    return { type: 'azure', connectionString, container }
+  }
+  const directory = process.env.CERT_STORAGE_DIR
+  if (directory) {
+    return { type: 'filesystem', directory }
+  }
+  return null
 }
 
 export function getOwuiRetryMax(): number {

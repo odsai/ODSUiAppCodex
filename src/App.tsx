@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import PillMenu from './components/PillMenu'
 import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
@@ -14,6 +14,7 @@ import LmsDashboard from './lms/pages/Dashboard'
 import { Courses as LmsCourses, CourseDetail as LmsCourseDetail, LessonPlayer as LmsLessonPlayer } from './lms/pages'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
+import { fetchWorkspaceSettings } from './utils/settingsClient'
 
 const App = () => {
   const route = useAppStore((s) => s.route)
@@ -22,6 +23,12 @@ const App = () => {
   const appearance = useAppStore((s) => s.appSettings.appearance)
   const setRoute = useAppStore((s) => s.setRoute)
   const selectCourse = useAppStore((s) => s.selectCourse)
+  const hydrateSettings = useAppStore((s) => s.hydrateSettings)
+  const settingsVersion = useAppStore((s) => s.settingsVersion)
+  const token = useAppStore((s) => s.token)
+  const user = useAppStore((s) => s.user)
+  const lmsConfig = useAppStore((s) => s.appSettings.lms)
+  const authConfig = useAppStore((s) => s.appSettings.auth)
 
   // Sync with hash-based routing
   useEffect(() => {
@@ -100,6 +107,30 @@ const App = () => {
       root.style.setProperty('--brand-accent', palette.accent)
     }
   }, [appearance])
+
+  const hydratedKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!signedIn) return
+    const baseUrl = (lmsConfig.apiBaseUrl || '').trim()
+    if (!baseUrl) return
+    const tenantId = user?.tenantId || authConfig.tenantId || ''
+    if (!tenantId) return
+    const key = `${tenantId}|${baseUrl}`
+    if (hydratedKeyRef.current === key && settingsVersion !== null) return
+    let cancelled = false
+    fetchWorkspaceSettings({ baseUrl, token, tenantId })
+      .then((result) => {
+        if (cancelled) return
+        hydrateSettings(result.settings, result.version)
+        hydratedKeyRef.current = key
+      })
+      .catch(() => {
+        /* ignore */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [signedIn, lmsConfig.apiBaseUrl, authConfig.tenantId, token, user?.tenantId, hydrateSettings, settingsVersion])
 
   let page = null
   switch (route) {
