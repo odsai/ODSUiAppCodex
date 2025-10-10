@@ -855,6 +855,30 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
                   next.splice(idx - 1, 0, m)
                   onChange({ ...header, sectionOrder: next })
                 }}
+                aria-label={`Move ${k} left`}
+                title="Move left"
+              >◄</button>
+              <button
+                className="rounded border px-1"
+                onClick={() => {
+                  if (idx === header.sectionOrder.length - 1) return
+                  const next = [...header.sectionOrder]
+                  const [m] = next.splice(idx, 1)
+                  next.splice(idx + 1, 0, m)
+                  onChange({ ...header, sectionOrder: next })
+                }}
+                aria-label={`Move ${k} right`}
+                title="Move right"
+              >►</button>
+              <button
+                className="rounded border px-1"
+                onClick={() => {
+                  if (idx === 0) return
+                  const next = [...header.sectionOrder]
+                  const [m] = next.splice(idx, 1)
+                  next.splice(idx - 1, 0, m)
+                  onChange({ ...header, sectionOrder: next })
+                }}
                 aria-label="Move up"
                 title="Move up"
               >▲</button>
