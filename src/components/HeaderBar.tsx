@@ -116,8 +116,12 @@ export default function HeaderBar() {
             aria-label="Go to dashboard"
             title="Dashboard"
           >
-            {cfg.showLogo && appearance.logoDataUrl ? (
-              <img src={appearance.logoDataUrl} alt="" className="h-6 w-auto max-w-[160px] object-contain" />
+            {cfg.showLogo && (cfg.logoDataUrl || appearance.logoDataUrl) ? (
+              <img
+                src={cfg.logoDataUrl || appearance.logoDataUrl}
+                alt="Header logo"
+                className="h-6 w-auto max-w-[180px] object-contain"
+              />
             ) : (
               <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
             )}

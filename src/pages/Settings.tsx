@@ -570,6 +570,32 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
     <section className="space-y-4 rounded-xl border bg-white p-4 shadow-sm">
       <h3 className="text-base font-semibold">Header Bar</h3>
       {/* Overlay-only mode; position selector removed */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium">Header logo</label>
+        <input
+          type="file"
+          accept="image/png, image/jpeg, image/svg+xml"
+          className="text-sm"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = () => {
+              onChange({ ...header, logoDataUrl: typeof reader.result === 'string' ? reader.result : undefined })
+            }
+            reader.readAsDataURL(file)
+          }}
+        />
+        {header.logoDataUrl && (
+          <div className="mt-2 flex items-center gap-3">
+            <img src={header.logoDataUrl} alt="Header logo preview" className="h-8 w-auto max-w-[180px] rounded border bg-white object-contain" />
+            <button className="rounded border px-2 py-1 text-sm text-red-500" onClick={() => onChange({ ...header, logoDataUrl: undefined })}>
+              Remove
+            </button>
+          </div>
+        )}
+        <p className="text-xs text-slate-500">Transparent PNG/SVG at least 24px tall recommended. Overrides the branding logo in the header rail.</p>
+      </div>
       <Row label="Compact icons and spacing">
         <input type="checkbox" checked={header.compact} onChange={(e) => onChange({ ...header, compact: e.target.checked })} />
       </Row>

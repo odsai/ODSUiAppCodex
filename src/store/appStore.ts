@@ -112,6 +112,7 @@ export type HeaderSettings = {
   railColor: string
   shadowOpacity: number
   collapsedOpacity: number
+  logoDataUrl?: string
 }
 
 export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home' | 'spacer'
@@ -308,6 +309,7 @@ const createDefaultAppSettings = (): AppSettings => {
       railColor: '',
       shadowOpacity: 0.08,
       collapsedOpacity: 0,
+      logoDataUrl: undefined,
     },
     updatedAt: new Date().toISOString(),
   }
@@ -532,11 +534,19 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         if (!isRecord(record.header)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
         const raw = (record.header as Record<string, unknown>).sectionOrder
         if (!Array.isArray(raw)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
-        const filtered = (raw as unknown[]).filter((x): x is HeaderSectionKey => typeof x === 'string' && (allowed as ReadonlyArray<string>).includes(x))
-        // ensure no duplicates and preserve order
+        const result: HeaderSectionKey[] = []
         const seen = new Set<string>()
-        const unique = filtered.filter((x) => (seen.has(x) ? false : (seen.add(x), true)))
-        return unique.length ? unique : (defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth'])
+        for (const value of raw as unknown[]) {
+          if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) continue
+          if (value === 'spacer') {
+            result.push('spacer')
+            continue
+          }
+          if (seen.has(value)) continue
+          seen.add(value)
+          result.push(value as HeaderSectionKey)
+        }
+        return result.length ? result : (defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth'])
       })(),
       minWidth: (() => {
         if (!isRecord(record.header)) return defaults.header?.minWidth ?? 0
@@ -561,6 +571,10 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).collapsedOpacity === 'number'
           ? Math.max(0, Math.min(1, (record.header as Record<string, unknown>).collapsedOpacity as number))
           : defaults.header?.collapsedOpacity ?? 0,
+      logoDataUrl:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).logoDataUrl === 'string'
+          ? ((record.header as Record<string, unknown>).logoDataUrl as string)
+          : defaults.header?.logoDataUrl,
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
