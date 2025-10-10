@@ -105,6 +105,16 @@ export type HeaderSettings = {
   hideOnAppIds: string[]
   edgeReveal: boolean
   railHeight: number // collapsed rail height in px
+  menuItems: HeaderMenuItem[]
+}
+
+export type HeaderMenuItem = {
+  id: string
+  label: string
+  icon: string
+  url: string
+  enabled?: boolean
+  group?: 'site'
 }
 
 const BASE_APPS: AppConfig[] = []
@@ -283,6 +293,7 @@ const createDefaultAppSettings = (): AppSettings => {
       hideOnAppIds: [],
       edgeReveal: true,
       railHeight: 10,
+      menuItems: [],
     },
     updatedAt: new Date().toISOString(),
   }
@@ -485,6 +496,23 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).railHeight === 'number'
           ? Math.max(4, Math.min(40, (record.header as Record<string, unknown>).railHeight as number))
           : defaults.header?.railHeight ?? 10,
+      menuItems: (() => {
+        if (!isRecord(record.header)) return defaults.header?.menuItems ?? []
+        const raw = (record.header as Record<string, unknown>).menuItems
+        if (!Array.isArray(raw)) return defaults.header?.menuItems ?? []
+        return raw
+          .map((item, idx) => {
+            const r = isRecord(item) ? (item as Record<string, unknown>) : {}
+            const id = typeof r.id === 'string' && r.id ? r.id : `hm_${Math.random().toString(36).slice(2, 8)}_${idx}`
+            const label = typeof r.label === 'string' ? r.label : 'Link'
+            const icon = typeof r.icon === 'string' ? r.icon : 'FiLink'
+            const url = typeof r.url === 'string' ? r.url : ''
+            const enabled = r.enabled !== undefined ? !!r.enabled : true
+            const group = 'site' as const
+            return { id, label, icon, url, enabled, group }
+          })
+          .filter((m) => m.url)
+      })(),
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,

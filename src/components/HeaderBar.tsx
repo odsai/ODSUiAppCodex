@@ -18,6 +18,7 @@ export default function HeaderBar() {
   const signedIn = useAppStore((s) => s.signedIn)
   const logout = useAppStore((s) => s.logout)
   const lmsEnabled = useAppStore((s) => s.appSettings.lms.enabled)
+  const menuItems = useAppStore((s) => s.appSettings.header?.menuItems || [])
 
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -60,6 +61,13 @@ export default function HeaderBar() {
   const railHeight = Math.max(4, Math.min(40, (cfg as unknown as { railHeight?: number }).railHeight ?? 10))
 
   const expandedHeight = Math.max(40, cfg.height || 56)
+  const searchWidth = cfg.showSearch ? (cfg.compact ? 192 : 240) : 0
+  const appIconCount = apps.filter((a) => a.enabled).slice(0, 6).length
+  const siteIconCount = (menuItems || []).filter((m) => m.enabled !== false).length
+  const iconSize = cfg.compact ? 28 : 34
+  const baseWidth = 420
+  const dynamicWidth = baseWidth + (appIconCount + siteIconCount) * iconSize + searchWidth
+  const containerWidth = Math.max(420, Math.min(960, dynamicWidth))
   const roundedClass =
     cfg.rounded === 'none'
       ? 'rounded-none'
@@ -112,7 +120,7 @@ export default function HeaderBar() {
       {!enabled || hiddenForApp ? null : (
         <header
           className={classNames(
-            'w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
+            'border bg-white/85 backdrop-blur transition-all shadow-sm',
             open ? '' : 'pointer-events-none',
             roundedClass,
             open ? 'opacity-100 translate-y-0' : 'opacity-80 -translate-y-2',
@@ -123,6 +131,7 @@ export default function HeaderBar() {
             borderColor: open ? undefined : 'transparent',
             boxShadow: open ? '0 6px 18px rgba(0,0,0,0.08)' : 'none',
             transition: 'height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out, transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out',
+            width: containerWidth,
           }}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
@@ -161,6 +170,25 @@ export default function HeaderBar() {
                     ) : (
                       <span className="text-slate-700">{resolveIcon(a.icon, cfg.compact ? 14 : 16)}</span>
                     )}
+                  </button>
+                ))}
+            </nav>
+          )}
+
+          {/* Site menu group */}
+          {siteIconCount > 0 && (
+            <nav className="hidden md:flex items-center gap-2">
+              {menuItems
+                .filter((m) => m.enabled !== false)
+                .map((m) => (
+                  <button
+                    key={m.id}
+                    className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
+                    onClick={() => window.open(m.url, '_blank', 'noopener,noreferrer')}
+                    aria-label={m.label}
+                    title={m.label}
+                  >
+                    <span className="text-slate-700">{resolveIcon(m.icon || 'FiLink', cfg.compact ? 14 : 16)}</span>
                   </button>
                 ))}
             </nav>

@@ -645,6 +645,81 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           />
           <p className="mt-1 text-xs text-slate-500">When viewing /app with one of these IDs, the header rail is fully hidden to preserve native UI.</p>
         </div>
+        <div className="md:col-span-2">
+          <h4 className="mb-2 text-sm font-semibold">Website Menu Items</h4>
+          <div className="space-y-2">
+            {(header.menuItems || []).map((m, idx) => (
+              <div key={m.id} className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={m.enabled !== false}
+                    onChange={(e) => {
+                      const next = [...(header.menuItems || [])]
+                      next[idx] = { ...m, enabled: e.target.checked }
+                      onChange({ ...header, menuItems: next })
+                    }}
+                  />
+                  Enabled
+                </label>
+                <input
+                  className="w-36 rounded border px-2 py-1 text-sm"
+                  placeholder="Label"
+                  value={m.label}
+                  onChange={(e) => {
+                    const next = [...(header.menuItems || [])]
+                    next[idx] = { ...m, label: e.target.value }
+                    onChange({ ...header, menuItems: next })
+                  }}
+                />
+                <select
+                  className="w-40 rounded border px-2 py-1 text-sm"
+                  value={m.icon}
+                  onChange={(e) => {
+                    const next = [...(header.menuItems || [])]
+                    next[idx] = { ...m, icon: e.target.value }
+                    onChange({ ...header, menuItems: next })
+                  }}
+                >
+                  {ICON_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="flex-1 rounded border px-2 py-1 text-sm"
+                  placeholder="https://opendesignschool.ai/..."
+                  value={m.url}
+                  onChange={(e) => {
+                    const next = [...(header.menuItems || [])]
+                    next[idx] = { ...m, url: e.target.value }
+                    onChange({ ...header, menuItems: next })
+                  }}
+                />
+                <button
+                  className="rounded border px-2 py-1 text-sm text-red-500"
+                  onClick={() => {
+                    const next = (header.menuItems || []).filter((x) => x.id !== m.id)
+                    onChange({ ...header, menuItems: next })
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            className="mt-2 rounded border px-3 py-1 text-sm"
+            onClick={() => {
+              const id = `hm_${Math.random().toString(36).slice(2, 8)}`
+              const next = [...(header.menuItems || []), { id, label: 'Menu', icon: 'FiLink', url: '', enabled: true, group: 'site' as const }]
+              onChange({ ...header, menuItems: next })
+            }}
+          >
+            + Add menu item
+          </button>
+        </div>
       </div>
       <p className="text-xs text-slate-500">The header bar mirrors the floating pill menu but sits at the top. Use it for quick access and search.</p>
     </section>
