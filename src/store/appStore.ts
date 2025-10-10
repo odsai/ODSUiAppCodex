@@ -502,7 +502,11 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         if (!isRecord(record.header)) return defaults.header?.hideOnAppIds ?? []
         const h = record.header as Record<string, unknown>
         const raw = h['hideOnAppIds']
-        return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : defaults.header?.hideOnAppIds ?? []
+        if (!Array.isArray(raw)) return defaults.header?.hideOnAppIds ?? []
+        return raw
+          .filter((x): x is string => typeof x === 'string')
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
       })(),
       edgeReveal:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).edgeReveal === 'boolean'
@@ -581,6 +585,8 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
     updatedBy: typeof record.updatedBy === 'string' ? (record.updatedBy as string) : defaults.updatedBy,
   }
 }
+
+export { normalizeAppSettings }
 
 type AppState = {
   // Preferences

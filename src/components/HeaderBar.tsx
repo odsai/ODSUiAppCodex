@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useAppStore, type Route } from '../store/appStore'
+import { useAppStore, type Route, type HeaderSectionKey } from '../store/appStore'
 import { toast } from '../store/toastStore'
 import { resolveIcon } from '../utils/iconCatalog'
 import { useCallback } from 'react'
@@ -43,6 +43,15 @@ export default function HeaderBar() {
     compact: true,
     hideOnAppIds: [],
     edgeReveal: true,
+    railHeight: 10,
+    menuItems: [],
+    sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'] as HeaderSectionKey[],
+    minWidth: 0,
+    maxWidth: 960,
+    railColor: '',
+    shadowOpacity: 0.08,
+    collapsedOpacity: 0,
+    logoDataUrl: undefined,
   }
 
   // per-app override: always hidden on certain embedded app IDs
@@ -105,13 +114,15 @@ export default function HeaderBar() {
     return list.filter((x) => x.label.toLowerCase().includes(q)).slice(0, 8)
   }, [apps, lmsEnabled, query, onPick])
 
+  const focusRing = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand/65'
+
   const renderSection = (key: string, idx: number) => {
     switch (key) {
       case 'logo':
         return (
           <button
             key={`logo-${idx}`}
-            className="flex items-center gap-2 text-sm font-semibold text-slate-800"
+            className={`flex items-center gap-2 text-sm font-semibold text-slate-800 ${focusRing}`}
             onClick={() => setRoute('/dashboard')}
             aria-label="Go to dashboard"
             title="Dashboard"
@@ -137,7 +148,7 @@ export default function HeaderBar() {
               .map((a) => (
                 <button
                   key={a.id}
-                  className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
+                  className={`flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50 ${focusRing}`}
                   onClick={() => onPick({ type: 'app', id: a.id })}
                   aria-label={`Open ${a.label}`}
                   title={a.label}
@@ -159,7 +170,7 @@ export default function HeaderBar() {
               .map((m) => (
                 <button
                   key={m.id}
-                  className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
+                  className={`flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50 ${focusRing}`}
                   onClick={() => window.open(m.url, '_blank', 'noopener,noreferrer')}
                   aria-label={m.label}
                   title={m.label}
@@ -240,7 +251,7 @@ export default function HeaderBar() {
         return (
           <button
             key={`settings-${idx}`}
-            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            className={`rounded border px-2 py-1 text-sm hover:bg-slate-50 ${focusRing}`}
             onClick={() => setRoute('/settings')}
             aria-label="Settings"
             title="Settings"
@@ -252,7 +263,7 @@ export default function HeaderBar() {
         return (
           <button
             key={`home-${idx}`}
-            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            className={`rounded border px-2 py-1 text-sm hover:bg-slate-50 ${focusRing}`}
             onClick={() => setRoute('/dashboard')}
             aria-label="Home"
             title="Home"
@@ -264,7 +275,7 @@ export default function HeaderBar() {
         return signedIn ? (
           <button
             key={`auth-logout-${idx}`}
-            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            className={`rounded border px-2 py-1 text-sm hover:bg-slate-50 ${focusRing}`}
             onClick={() => {
               if (confirm('Log out?')) {
                 logout()
@@ -280,7 +291,7 @@ export default function HeaderBar() {
         ) : (
           <button
             key={`auth-login-${idx}`}
-            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            className={`rounded border px-2 py-1 text-sm hover:bg-slate-50 ${focusRing}`}
             onClick={() => setRoute('/login')}
             aria-label="Sign in"
             title="Sign in"
@@ -303,6 +314,14 @@ export default function HeaderBar() {
         'flex items-center justify-center px-2',
       )}
     >
+      <button
+        className={`sr-only ${focusRing} focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-40 focus-visible:inline-block focus-visible:rounded bg-brand px-3 py-2 text-sm text-white`}
+        aria-expanded={open}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {open ? 'Hide navigation rail' : 'Show navigation rail'}
+      </button>
       {cfg.edgeReveal && (
         <div
           className="fixed left-0 right-0 top-0 z-20 h-2 opacity-0"

@@ -30,7 +30,6 @@ const App = () => {
   const user = useAppStore((s) => s.user)
   const lmsConfig = useAppStore((s) => s.appSettings.lms)
   const authConfig = useAppStore((s) => s.appSettings.auth)
-  const headerCfg = useAppStore((s) => s.appSettings.header)
 
   // Sync with hash-based routing
   useEffect(() => {
@@ -156,15 +155,7 @@ const App = () => {
     <>
       <a href="#main" className="skip-link">Skip to content</a>
       <HeaderBar />
-      <main
-        id="main"
-        className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'}`}
-        style={
-          headerCfg && headerCfg.enabled && headerCfg.position === 'fixed'
-            ? { paddingTop: Math.max(48, (headerCfg.height || 56) + 16) }
-            : undefined
-        }
-      >
+      <main id="main" className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'}`}>
       {/* Error boundary helps avoid blank screens on unexpected render errors */}
       <ErrorBoundary>
         {page}
