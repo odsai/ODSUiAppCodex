@@ -12,7 +12,54 @@
 .text-brand { color: var(--brand-color) !important; }
 .border-brand { border-color: var(--brand-color) !important; }
 
-body { @apply bg-slate-50 text-slate-900; }
+body {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  color: #0f172a;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+body[data-surface='light'] {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+body[data-surface='dark'] {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(59, 130, 246, 0.18), transparent 55%),
+    #020617;
+  color: #e2e8f0;
+}
+
+body[data-surface='glass'] {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.28), transparent 55%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.95), rgba(2, 6, 23, 0.98));
+  color: #eef2ff;
+  background-attachment: fixed;
+}
+
+.surface-card {
+  background-color: #ffffff;
+  border-color: rgba(148, 163, 184, 0.25);
+  transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+
+.theme-dark .surface-card {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(51, 65, 85, 0.6);
+  color: #e2e8f0;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+}
+
+.theme-glass .surface-card {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #eef2ff;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 24px 58px rgba(15, 23, 42, 0.28);
+}
 
 /* Skip link for accessibility */
 .skip-link {

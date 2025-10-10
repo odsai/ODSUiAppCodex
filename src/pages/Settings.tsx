@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useAppStore, type AppConfig, type AppSettings, type ColorPalette, type HeaderSettings } from '../store/appStore'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useAppStore, type AppConfig, type AppSettings, type ColorPalette, type HeaderSettings, type PillMenuSettings } from '../store/appStore'
 import { toast } from '../store/toastStore'
 import { ping } from '../utils/health'
 import { ICON_OPTIONS, resolveIcon } from '../utils/iconCatalog'
@@ -31,15 +31,123 @@ type OwuiHealthResponse = {
   message?: string
 }
 
-type TabId = 'apps' | 'branding' | 'header' | 'lms' | 'auth'
+type TabId = 'apps' | 'branding' | 'header' | 'fab' | 'floater' | 'lms' | 'auth'
 
 const Tabs: { id: TabId; label: string }[] = [
   { id: 'apps', label: 'Apps' },
   { id: 'branding', label: 'Branding & Theme' },
   { id: 'header', label: 'Header Bar' },
+  { id: 'fab', label: 'Floating Menu' },
+  { id: 'floater', label: 'Floating Header' },
   { id: 'lms', label: 'LMS' },
   { id: 'auth', label: 'Single Sign-On' },
 ]
+
+const IconPicker = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const selected = useMemo(() => ICON_OPTIONS.find((opt) => opt.value === value), [value])
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return ICON_OPTIONS
+    return ICON_OPTIONS.filter((option) =>
+      option.label.toLowerCase().includes(query) || option.value.toLowerCase().includes(query) || option.group.toLowerCase().includes(query),
+    )
+  }, [search])
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof filtered>()
+    filtered.forEach((option) => {
+      const existing = map.get(option.group)
+      if (existing) existing.push(option)
+      else map.set(option.group, [option])
+    })
+    return Array.from(map.entries())
+  }, [filtered])
+
+  const handleSelect = (iconValue: string) => {
+    onChange(iconValue)
+    setOpen(false)
+    setSearch('')
+  }
+
+  const triggerLabel = selected
+    ? selected.label
+    : value && value.startsWith('Fi')
+    ? value.replace(/^Fi/, '')
+    : value
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        className={`flex w-full items-center justify-between rounded border px-3 py-2 text-sm shadow-sm transition ${
+          open ? 'border-brand ring-2 ring-brand/20' : 'border-slate-300 hover:border-brand hover:ring-1 hover:ring-brand/20'
+        }`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-base text-slate-600">{resolveIcon(value || 'FiGrid', 18)}</span>
+          <span>{triggerLabel || 'Select icon'}</span>
+        </span>
+        <span className="text-xs text-slate-400">{open ? 'Close' : 'Browse'}</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-2 w-72 rounded-xl border bg-white shadow-xl">
+          <div className="sticky top-0 border-b bg-white p-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search icons…"
+              className="w-full rounded border px-2 py-1 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/40"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto p-2 space-y-4">
+            {grouped.length === 0 ? (
+              <p className="px-2 py-4 text-center text-xs text-slate-500">No icons found.</p>
+            ) : (
+              grouped.map(([group, options]) => (
+                <div key={group} className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{group}</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {options.map((option) => {
+                      const active = option.value === value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleSelect(option.value)}
+                          className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs transition hover:border-brand hover:bg-brand/5 ${
+                            active ? 'border-brand bg-brand/10 text-brand' : 'border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          <span className="text-lg">{resolveIcon(option.value, 18)}</span>
+                          <span className="text-[10px] leading-tight">{option.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const MAX_UPLOAD_SIZE = 256 * 1024 // 256 KB ceiling for inline assets
 
@@ -94,7 +202,7 @@ const AppsTab = ({
       {apps.map((app) => {
         const open = expandedId === app.id
         return (
-          <div key={app.id} className="rounded-xl border bg-white p-4 shadow-sm">
+          <div key={app.id} className="surface-card rounded-xl border p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-slate-50 text-slate-700">
@@ -164,19 +272,12 @@ const AppsTab = ({
                 </div>
                 <div className="space-y-3">
                   <label className="block text-sm font-medium">Icon</label>
-                  <select
-                    className="w-full rounded border px-3 py-2"
+                  <IconPicker
                     value={app.icon}
-                    onChange={(e) =>
-                      handleUpdate(app.id, (prev) => ({ ...prev, icon: e.target.value }))
+                    onChange={(iconValue) =>
+                      handleUpdate(app.id, (prev) => ({ ...prev, icon: iconValue }))
                     }
-                  >
-                    {ICON_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <label className="block text-sm font-medium">Custom icon upload (optional)</label>
                   <input
                     type="file"
@@ -269,7 +370,7 @@ const AppsTab = ({
       >
         + Add app
       </button>
-      <section className="rounded-xl border bg-white p-4 shadow-sm">
+      <section className="surface-card rounded-xl border p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Courses</h3>
         <label className="mt-3 flex items-center gap-3 text-sm">
           <input
@@ -390,10 +491,47 @@ const BrandingTab = ({
     }
   }
 
+  const previewBackground = appearance.theme === 'dark'
+    ? 'linear-gradient(180deg, rgba(15,23,42,0.94), rgba(15,23,42,0.88))'
+    : appearance.theme === 'glass'
+    ? 'rgba(255,255,255,0.16)'
+    : `${activePalette?.primary ?? '#2563EB'}15`
+  const previewBorder = appearance.theme === 'dark'
+    ? 'rgba(148,163,184,0.45)'
+    : activePalette?.accent ?? 'rgba(148,163,184,0.35)'
+  const previewHeadingColor = appearance.brandColor || activePalette?.primary || '#FF6F00'
+  const previewTextColor = appearance.theme === 'dark' ? '#E2E8F0' : '#1F2937'
+  const previewSubtleColor = appearance.theme === 'dark' ? '#CBD5F5' : '#475569'
+  const previewLogoBg = appearance.brandColor || activePalette?.primary || 'var(--brand-color)'
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Default theme</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(['light', 'dark', 'system', 'glass'] as const).map((mode) => {
+                const active = appearance.theme === mode
+                const label = mode === 'glass' ? 'Glass' : mode.charAt(0).toUpperCase() + mode.slice(1)
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                      active
+                        ? 'border-brand bg-brand text-white shadow-sm'
+                        : 'border-slate-300 text-slate-600 dark:border-slate-500 dark:text-slate-300'
+                    }`}
+                    onClick={() => onChange({ ...appearance, theme: mode })}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">System follows each viewer&apos;s preference. Glass applies a frosted overlay.</p>
+          </div>
           <div>
             <label className="block text-sm font-medium">Studio title</label>
             <input
@@ -424,26 +562,37 @@ const BrandingTab = ({
             </select>
           </div>
         </div>
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
+        <div className="surface-card rounded-xl border p-4 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">Live preview</p>
           <div
-            className={`mt-3 rounded-xl border-2 p-6 text-${appearance.introAlignment} shadow-inner`}
+            className="mt-3 rounded-xl border-2 p-6 shadow-inner"
             style={{
-              borderColor: activePalette?.accent,
-              background: `${activePalette?.primary}15`,
+              borderColor: previewBorder,
+              background: previewBackground,
+              textAlign: appearance.introAlignment,
+              color: previewTextColor,
+              backdropFilter: appearance.theme === 'glass' ? 'blur(16px)' : undefined,
+              WebkitBackdropFilter: appearance.theme === 'glass' ? 'blur(16px)' : undefined,
             }}
           >
-            {appearance.logoDataUrl ? (
-              <img src={appearance.logoDataUrl} alt="Logo preview" className="mx-auto h-16 object-contain" />
-            ) : (
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand text-white">
-                Logo
-              </div>
+            {appearance.showLogo !== false && (
+              appearance.logoDataUrl ? (
+                <img src={appearance.logoDataUrl} alt="Logo preview" className="mx-auto h-16 object-contain" />
+              ) : (
+                <div
+                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-full text-white"
+                  style={{ background: previewLogoBg }}
+                >
+                  {(appearance.title || 'Logo').slice(0, 2).toUpperCase()}
+                </div>
+              )
             )}
-            <h2 className="mt-4 text-2xl font-bold" style={{ color: appearance.brandColor }}>
+            <h2 className="mt-4 text-2xl font-bold" style={{ color: previewHeadingColor }}>
               {appearance.title || 'Welcome to ODSAiStudio!'}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">{appearance.intro}</p>
+            <p className="mt-2 text-sm" style={{ color: previewSubtleColor }}>
+              {appearance.intro}
+            </p>
           </div>
         </div>
       </div>
@@ -460,7 +609,17 @@ const BrandingTab = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium">Studio logo</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium">Studio logo</label>
+              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={appearance.showLogo !== false}
+                  onChange={(e) => onChange({ ...appearance, showLogo: e.target.checked })}
+                />
+                Show in app
+              </label>
+            </div>
             <input
               type="file"
               accept="image/png, image/jpeg, image/svg+xml"
@@ -576,7 +735,19 @@ const BrandingTab = ({
 
 const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (next: HeaderSettings) => void }) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  const sectionOptions: HeaderSectionKey[] = ['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home', 'spacer', 'pin']
+  const sectionLabels: Record<HeaderSectionKey, string> = {
+    logo: 'Logo',
+    apps: 'Apps (launcher)',
+    site: 'Custom site links',
+    search: 'Search box',
+    auth: 'Auth button',
+    settings: 'Settings button',
+    home: 'Home button',
+    spacer: 'Spacer',
+    pin: 'Pin toggle (auto-hide only)',
+  }
+  const Row = ({ label, children }: { label: React.ReactNode; children: React.ReactNode }) => (
     <div className="flex items-center justify-between gap-3">
       <div className="text-sm text-slate-700">{label}</div>
       <div>{children}</div>
@@ -584,9 +755,18 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
   )
 
   return (
-    <section className="space-y-4 rounded-xl border bg-white p-4 shadow-sm">
+    <section className="surface-card space-y-4 rounded-xl border p-4 shadow-sm">
       <h3 className="text-base font-semibold">Header Bar</h3>
       {/* Overlay-only mode; position selector removed */}
+
+      {/* Prominent enable toggle at the top */}
+      <Row label={<span className="font-semibold">Enable header bar</span>}>
+        <input
+          type="checkbox"
+          checked={header.enabled}
+          onChange={(e) => onChange({ ...header, enabled: e.target.checked })}
+        />
+      </Row>
       <div className="space-y-2">
         <label className="block text-sm font-medium">Header logo</label>
         <input
@@ -620,9 +800,6 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
       <Row label="Edge reveal (show when cursor hits top edge)">
         <input type="checkbox" checked={header.edgeReveal} onChange={(e) => onChange({ ...header, edgeReveal: e.target.checked })} />
       </Row>
-      <Row label="Enable header bar">
-        <input type="checkbox" checked={header.enabled} onChange={(e) => onChange({ ...header, enabled: e.target.checked })} />
-      </Row>
       <Row label="Auto-expand on hover">
         <input type="checkbox" checked={header.autoHide} onChange={(e) => onChange({ ...header, autoHide: e.target.checked })} />
       </Row>
@@ -635,6 +812,49 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
       <Row label="Build menu from Apps">
         <input type="checkbox" checked={header.menuFromApps} onChange={(e) => onChange({ ...header, menuFromApps: e.target.checked })} />
       </Row>
+      <div className="flex flex-wrap gap-2 rounded-lg border border-dashed border-slate-200/70 p-3">
+        {[
+          {
+            id: 'compact',
+            label: 'Compact',
+            desc: 'Tighter spacing, 48px height',
+            values: { height: 52, minWidth: 320, maxWidth: 640, horizontalPadding: 14, itemGap: 8, iconScale: 0.9 },
+          },
+          {
+            id: 'cozy',
+            label: 'Cozy',
+            desc: 'Default balance, 60px height',
+            values: { height: 60, minWidth: 360, maxWidth: 960, horizontalPadding: 18, itemGap: 10, iconScale: 1 },
+          },
+          {
+            id: 'spacious',
+            label: 'Spacious',
+            desc: 'Larger buttons, 72px height',
+            values: { height: 72, minWidth: 420, maxWidth: 1024, horizontalPadding: 22, itemGap: 14, iconScale: 1.15 },
+          },
+        ].map((preset) => {
+          const active =
+            header.height === preset.values.height &&
+            header.minWidth === preset.values.minWidth &&
+            header.maxWidth === preset.values.maxWidth &&
+            header.horizontalPadding === preset.values.horizontalPadding &&
+            header.itemGap === preset.values.itemGap &&
+            Number(header.iconScale ?? 1).toFixed(2) === Number(preset.values.iconScale).toFixed(2)
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              className={`flex flex-col rounded-lg border px-3 py-2 text-left text-sm transition ${
+                active ? 'border-brand bg-brand/10 text-brand' : 'border-slate-200 hover:border-brand/60'
+              }`}
+              onClick={() => onChange({ ...header, ...preset.values })}
+            >
+              <span className="font-semibold">{preset.label}</span>
+              <span className="text-xs text-slate-500">{preset.desc}</span>
+            </button>
+          )
+        })}
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="block text-sm font-medium">Height (px)</label>
@@ -659,25 +879,34 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Min width (px)</label>
+          <label className="block text-sm font-medium">Minimum width (px)</label>
           <input
             type="number"
-            min={320}
-            max={1600}
+            min={280}
+            max={960}
             className="mt-1 w-full rounded border px-3 py-2"
-            value={header.minWidth}
-            onChange={(e) => onChange({ ...header, minWidth: Math.max(320, Math.min(1600, Number.parseInt(e.target.value, 10) || 420)) })}
+            value={header.minWidth ?? 340}
+            onChange={(e) => {
+              const nextMin = Math.max(280, Math.min(960, Number.parseInt(e.target.value, 10) || 340))
+              const nextMax = Math.max(nextMin + 20, header.maxWidth ?? 960)
+              onChange({ ...header, minWidth: nextMin, maxWidth: nextMax })
+            }}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Max width (px)</label>
+          <label className="block text-sm font-medium">Maximum width (px)</label>
           <input
             type="number"
-            min={600}
-            max={2000}
+            min={(header.minWidth ?? 340) + 20}
+            max={1600}
             className="mt-1 w-full rounded border px-3 py-2"
-            value={header.maxWidth}
-            onChange={(e) => onChange({ ...header, maxWidth: Math.max(600, Math.min(2000, Number.parseInt(e.target.value, 10) || 960)) })}
+            value={header.maxWidth ?? 960}
+            onChange={(e) => {
+              const baseMin = header.minWidth ?? 340
+              const rawMax = Number.parseInt(e.target.value, 10)
+              const nextMax = Math.max(baseMin + 20, Math.min(1600, Number.isNaN(rawMax) ? baseMin + 20 : rawMax))
+              onChange({ ...header, maxWidth: nextMax })
+            }}
           />
         </div>
         <div>
@@ -697,6 +926,40 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
             />
           </div>
           <p className="mt-1 text-xs text-slate-500">Leave blank to use brand color.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Horizontal padding (px)</label>
+          <input
+            type="number"
+            min={8}
+            max={48}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.horizontalPadding ?? 18}
+            onChange={(e) => onChange({ ...header, horizontalPadding: Math.max(8, Math.min(48, Number.parseInt(e.target.value, 10) || 18)) })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Item gap (px)</label>
+          <input
+            type="number"
+            min={4}
+            max={28}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.itemGap ?? 10}
+            onChange={(e) => onChange({ ...header, itemGap: Math.max(4, Math.min(28, Number.parseInt(e.target.value, 10) || 10)) })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Icon scale</label>
+          <input
+            type="number"
+            min={0.75}
+            max={1.5}
+            step={0.05}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.iconScale ?? 1}
+            onChange={(e) => onChange({ ...header, iconScale: Math.max(0.75, Math.min(1.5, Number.parseFloat(e.target.value) || 1)) })}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium">Shadow opacity (0–0.3)</label>
@@ -773,21 +1036,16 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
                     onChange({ ...header, menuItems: next })
                   }}
                 />
-                <select
-                  className="w-40 rounded border px-2 py-1 text-sm"
-                  value={m.icon}
-                  onChange={(e) => {
-                    const next = [...(header.menuItems || [])]
-                    next[idx] = { ...m, icon: e.target.value }
-                    onChange({ ...header, menuItems: next })
-                  }}
-                >
-                  {ICON_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-40">
+                  <IconPicker
+                    value={m.icon}
+                    onChange={(iconValue) => {
+                      const next = [...(header.menuItems || [])]
+                      next[idx] = { ...m, icon: iconValue }
+                      onChange({ ...header, menuItems: next })
+                    }}
+                  />
+                </div>
                 <input
                   className="flex-1 rounded border px-2 py-1 text-sm"
                   placeholder="https://opendesignschool.ai/..."
@@ -845,7 +1103,7 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
               }}
               onDragEnd={() => setDragIndex(null)}
             >
-              <span className="font-medium">{k}</span>
+              <span className="font-medium">{sectionLabels[k] ?? k}</span>
               <button
                 className="rounded border px-1"
                 onClick={() => {
@@ -911,27 +1169,476 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
             className="rounded border px-2 py-1 text-sm"
             value=""
             onChange={(e) => {
-              const key = e.target.value as 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home'
+              const key = e.target.value as HeaderSectionKey
               if (!key) return
-              if (header.sectionOrder.includes(key)) return
+              if (key !== 'spacer' && header.sectionOrder.includes(key)) {
+                e.currentTarget.value = ''
+                return
+              }
               onChange({ ...header, sectionOrder: [...header.sectionOrder, key] })
+              e.currentTarget.value = ''
             }}
           >
             <option value="">+ Add section…</option>
-            {(['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home', 'spacer'] as const)
-              .filter((k) => !header.sectionOrder.includes(k))
+            {sectionOptions
+              .filter((k) => k === 'spacer' || !header.sectionOrder.includes(k))
               .map((k) => (
-                <option key={k} value={k}>{k}</option>
+                <option key={k} value={k}>{sectionLabels[k] ?? k}</option>
               ))}
           </select>
           <button
             className="rounded border px-2 py-1 text-sm"
-            onClick={() => onChange({ ...header, sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'] })}
+            onClick={() => onChange({ ...header, sectionOrder: ['logo', 'apps', 'site', 'search', 'auth', 'pin'] })}
           >
             Reset order
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">Drag chips to reorder. Add &quot;spacer&quot; entries to create custom gaps between sections.</p>
+        <p className="text-xs text-slate-500">“Pin toggle” only renders when auto-hide is enabled.</p>
+      </div>
+    </section>
+  )
+}
+
+const DEFAULT_PILL_MENU: PillMenuSettings = {
+  enabled: true,
+  allowDrag: true,
+  defaultPin: 'auto',
+  showDashboard: true,
+  showLms: true,
+  showSettings: true,
+  showLogout: true,
+  includeApps: true,
+  density: 'comfortable',
+  style: 'glass',
+  fabIcon: 'FiGrid',
+  fabSize: 56,
+  fabBackground: 'var(--brand-color)',
+  fabForeground: '#FFFFFF',
+  stackBackground: 'rgba(255,255,255,0.85)',
+  stackBorder: 'rgba(148, 163, 184, 0.35)',
+  stackOpacity: 0.9,
+  stackBlur: 18,
+  tooltipSide: 'auto',
+  menuScale: 1,
+  panelPadding: 12,
+}
+
+const PillMenuTab = ({ pillMenu, onChange }: { pillMenu?: PillMenuSettings; onChange: (next: PillMenuSettings) => void }) => {
+  const resolved = { ...DEFAULT_PILL_MENU, ...(pillMenu ?? {}) }
+  const setPreview = useAppStore((s) => s.setPreview)
+  const clearPreview = useAppStore((s) => s.clearPreview)
+  const update = (patch: Partial<PillMenuSettings>) => {
+    const next = { ...resolved, ...patch }
+    onChange(next)
+    setPreview({ pillMenu: next })
+  }
+
+  useEffect(() => {
+    if (pillMenu) {
+      setPreview({ pillMenu: { ...DEFAULT_PILL_MENU, ...pillMenu } })
+    } else {
+      setPreview({ pillMenu: undefined })
+    }
+  }, [pillMenu, setPreview])
+
+  useEffect(() => {
+    return () => {
+      clearPreview()
+    }
+  }, [clearPreview])
+
+  return (
+    <section className="surface-card space-y-4 rounded-xl border p-4 shadow-sm">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-base font-semibold">Floating pill menu</h3>
+          <p className="text-sm text-slate-500">Control the draggable launcher that appears after sign-in.</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={resolved.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
+          Enabled
+        </label>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Allow dragging</span>
+          <input
+            type="checkbox"
+            checked={resolved.allowDrag}
+            onChange={(e) => update({ allowDrag: e.target.checked })}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Show pinned apps</span>
+          <input
+            type="checkbox"
+            checked={resolved.includeApps}
+            onChange={(e) => update({ includeApps: e.target.checked })}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Dashboard shortcut</span>
+          <input
+            type="checkbox"
+            checked={resolved.showDashboard}
+            onChange={(e) => update({ showDashboard: e.target.checked })}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Learning shortcut</span>
+          <input
+            type="checkbox"
+            checked={resolved.showLms}
+            onChange={(e) => update({ showLms: e.target.checked })}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Settings shortcut</span>
+          <input
+            type="checkbox"
+            checked={resolved.showSettings}
+            onChange={(e) => update({ showSettings: e.target.checked })}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Logout button</span>
+          <input
+            type="checkbox"
+            checked={resolved.showLogout}
+            onChange={(e) => update({ showLogout: e.target.checked })}
+          />
+        </label>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">Default behaviour</label>
+          <select
+            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+            value={resolved.defaultPin}
+            onChange={(e) => update({ defaultPin: e.target.value as PillMenuSettings['defaultPin'] })}
+          >
+            <option value="auto">Hover to reveal</option>
+            <option value="open">Pinned open</option>
+            <option value="closed">Pinned closed</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Menu density</label>
+          <select
+            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+            value={resolved.density}
+            onChange={(e) => update({ density: e.target.value as PillMenuSettings['density'] })}
+          >
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Visual style</label>
+          <select
+            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+            value={resolved.style}
+            onChange={(e) => update({ style: e.target.value as PillMenuSettings['style'] })}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="glass">Glassmorphism</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-500">Glass adds a frosted effect and respects the panel opacity and blur.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Tooltip side</label>
+          <select
+            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+            value={resolved.tooltipSide}
+            onChange={(e) => update({ tooltipSide: e.target.value as PillMenuSettings['tooltipSide'] })}
+          >
+            <option value="auto">Auto (based on position)</option>
+            <option value="right">Always right</option>
+            <option value="left">Always left</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">FAB size (px)</label>
+          <input
+            type="number"
+            min={48}
+            max={80}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={resolved.fabSize}
+            onChange={(e) => update({ fabSize: Number.parseInt(e.target.value, 10) || 56 })}
+          />
+          <p className="mt-1 text-xs text-slate-500">Set between 48–80px for the main round button.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Menu scale</label>
+          <input
+            type="range"
+            min={0.6}
+            max={1.4}
+            step={0.05}
+            className="mt-2 w-full"
+            value={resolved.menuScale}
+            onChange={(e) => update({ menuScale: Number.parseFloat(e.target.value) || 1 })}
+          />
+          <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+            <span>Compact</span>
+            <span>{resolved.menuScale.toFixed(2)}×</span>
+            <span>Large</span>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel padding (px)</label>
+          <input
+            type="range"
+            min={4}
+            max={32}
+            step={1}
+            className="mt-2 w-full"
+            value={resolved.panelPadding}
+            onChange={(e) => update({ panelPadding: Number.parseInt(e.target.value, 10) || 12 })}
+          />
+          <div className="mt-1 text-xs text-slate-500">{resolved.panelPadding}px inner padding</div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Glass blur (px)</label>
+          <input
+            type="number"
+            min={0}
+            max={32}
+            step={1}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={resolved.stackBlur}
+            onChange={(e) => update({ stackBlur: Number.parseInt(e.target.value, 10) || 0 })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Glass tint opacity (0 – 1)</label>
+          <input
+            type="number"
+            step={0.05}
+            min={0}
+            max={1}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={resolved.stackOpacity}
+            onChange={(e) => update({ stackOpacity: Number.parseFloat(e.target.value) || 0 })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">FAB icon</label>
+          <IconPicker value={resolved.fabIcon} onChange={(iconValue) => update({ fabIcon: iconValue })} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">FAB background</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text"
+              className="w-full rounded border px-3 py-2 text-sm"
+              value={resolved.fabBackground}
+              onChange={(e) => update({ fabBackground: e.target.value })}
+            />
+            <span className="h-7 w-7 rounded-full border" style={{ background: resolved.fabBackground }} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">FAB icon color</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text"
+              className="w-full rounded border px-3 py-2 text-sm"
+              value={resolved.fabForeground}
+              onChange={(e) => update({ fabForeground: e.target.value })}
+            />
+            <span className="h-7 w-7 rounded-full border" style={{ background: resolved.fabForeground }} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel background</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text"
+              className="w-full rounded border px-3 py-2 text-sm"
+              value={resolved.stackBackground}
+              onChange={(e) => update({ stackBackground: e.target.value })}
+            />
+            <span className="h-7 w-7 rounded-full border" style={{ background: resolved.stackBackground }} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel border</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text"
+              className="w-full rounded border px-3 py-2 text-sm"
+              value={resolved.stackBorder}
+              onChange={(e) => update({ stackBorder: e.target.value })}
+            />
+            <span className="h-7 w-7 rounded-full border" style={{ background: resolved.stackBorder }} />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const FloatingHeaderTab = ({ config, onChange }: { config?: PillMenuSettings; onChange: (next: PillMenuSettings) => void }) => {
+  const defaults: PillMenuSettings = React.useMemo(() => ({
+    enabled: false,
+    allowDrag: true,
+    defaultPin: 'auto',
+    showDashboard: true,
+    showLms: true,
+    showSettings: true,
+    showLogout: true,
+    includeApps: true,
+    density: 'comfortable',
+    style: 'glass',
+    fabIcon: 'FiGrid',
+    fabSize: 48,
+    fabBackground: 'var(--brand-color)',
+    fabForeground: '#FFFFFF',
+    stackBackground: 'rgba(255,255,255,0.85)',
+    stackBorder: 'rgba(148, 163, 184, 0.35)',
+    stackOpacity: 0.92,
+    stackBlur: 12,
+    tooltipSide: 'auto',
+    menuScale: 1,
+    panelPadding: 10,
+  }), [])
+  const resolved = { ...defaults, ...(config ?? {}) }
+  const setPreview = useAppStore((s) => s.setPreview)
+  const clearPreview = useAppStore((s) => s.clearPreview)
+  const update = (patch: Partial<PillMenuSettings>) => {
+    const next = { ...resolved, ...patch }
+    onChange(next)
+    setPreview({ floatingHeader: next })
+  }
+
+  useEffect(() => {
+    if (config) {
+      setPreview({ floatingHeader: { ...defaults, ...config } })
+    } else {
+      setPreview({ floatingHeader: undefined })
+    }
+  }, [config, setPreview, defaults])
+
+  useEffect(() => () => clearPreview(), [clearPreview])
+
+  return (
+    <section className="surface-card space-y-4 rounded-xl border p-4 shadow-sm">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-base font-semibold">Floating header launcher</h3>
+          <p className="text-sm text-slate-500">A draggable quick menu that expands horizontally at the top.</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={resolved.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          Enabled
+        </label>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Allow dragging</span>
+          <input type="checkbox" checked={resolved.allowDrag} onChange={(e) => update({ allowDrag: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Include apps</span>
+          <input type="checkbox" checked={resolved.includeApps} onChange={(e) => update({ includeApps: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Dashboard</span>
+          <input type="checkbox" checked={resolved.showDashboard} onChange={(e) => update({ showDashboard: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Learning</span>
+          <input type="checkbox" checked={resolved.showLms} onChange={(e) => update({ showLms: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Settings</span>
+          <input type="checkbox" checked={resolved.showSettings} onChange={(e) => update({ showSettings: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm dark:border-slate-600/60 dark:bg-slate-800/40">
+          <span>Logout</span>
+          <input type="checkbox" checked={resolved.showLogout} onChange={(e) => update({ showLogout: e.target.checked })} />
+        </label>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">Default behaviour</label>
+          <select className="mt-1 w-full rounded border px-3 py-2 text-sm" value={resolved.defaultPin} onChange={(e) => update({ defaultPin: e.target.value as PillMenuSettings['defaultPin'] })}>
+            <option value="auto">Hover to reveal</option>
+            <option value="open">Always open (pinned)</option>
+            <option value="closed">Manual only</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Style</label>
+          <select className="mt-1 w-full rounded border px-3 py-2 text-sm" value={resolved.style} onChange={(e) => update({ style: e.target.value as PillMenuSettings['style'] })}>
+            <option value="glass">Glass</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Button size</label>
+          <input type="number" min={40} max={72} className="mt-1 w-full rounded border px-3 py-2" value={resolved.fabSize} onChange={(e) => update({ fabSize: Math.max(40, Math.min(72, Number.parseInt(e.target.value, 10) || 48)) })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Menu scale</label>
+          <input type="number" step={0.05} min={0.6} max={1.4} className="mt-1 w-full rounded border px-3 py-2" value={resolved.menuScale} onChange={(e) => update({ menuScale: Math.max(0.6, Math.min(1.4, Number.parseFloat(e.target.value) || 1)) })} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">Button icon</label>
+          <IconPicker value={resolved.fabIcon} onChange={(v) => update({ fabIcon: v })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Button color</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input type="color" className="h-10 w-10 cursor-pointer rounded border" value={resolved.fabBackground || '#FF6F00'} onChange={(e) => update({ fabBackground: e.target.value })} />
+            <input className="flex-1 rounded border px-3 py-2" value={resolved.fabBackground} onChange={(e) => update({ fabBackground: e.target.value })} placeholder="#HEX or var(--brand-color)" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">Panel background</label>
+          <input className="mt-1 w-full rounded border px-3 py-2" value={resolved.stackBackground} onChange={(e) => update({ stackBackground: e.target.value })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel border</label>
+          <input className="mt-1 w-full rounded border px-3 py-2" value={resolved.stackBorder} onChange={(e) => update({ stackBorder: e.target.value })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel opacity</label>
+          <input type="number" step={0.01} min={0} max={1} className="mt-1 w-full rounded border px-3 py-2" value={resolved.stackOpacity} onChange={(e) => update({ stackOpacity: Math.max(0, Math.min(1, Number.parseFloat(e.target.value) || 0.9)) })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel blur</label>
+          <input type="number" min={0} max={32} className="mt-1 w-full rounded border px-3 py-2" value={resolved.stackBlur} onChange={(e) => update({ stackBlur: Math.max(0, Math.min(32, Number.parseInt(e.target.value, 10) || 12)) })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Panel padding</label>
+          <input type="number" min={4} max={32} className="mt-1 w-full rounded border px-3 py-2" value={resolved.panelPadding} onChange={(e) => update({ panelPadding: Math.max(4, Math.min(32, Number.parseInt(e.target.value, 10) || 10)) })} />
+        </div>
       </div>
     </section>
   )
@@ -957,7 +1664,7 @@ const LmsTab = ({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <section className="surface-card rounded-xl border p-5 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">LMS availability</h2>
@@ -1134,7 +1841,7 @@ const LmsTab = ({
         </div>
       </section>
 
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <section className="surface-card rounded-xl border p-5 shadow-sm">
         <h2 className="text-lg font-semibold">Feature toggles</h2>
         <p className="text-sm text-slate-500">Enable extensions that your learning content relies on.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1229,7 +1936,7 @@ const AuthTab = ({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-white p-4 shadow-sm">
+      <section className="surface-card rounded-xl border p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold">Azure Active Directory (Entra ID)</h3>
@@ -1315,7 +2022,7 @@ const AuthTab = ({
         </div>
       </section>
 
-      <section className="rounded-xl border bg-white p-4 shadow-sm">
+      <section className="surface-card rounded-xl border p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-600">Notes</h3>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-500">
           <li>Use a SPA (single-page application) registration in Azure Entra ID with PKCE enabled.</li>
@@ -1421,7 +2128,7 @@ export default function Settings() {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-bold">Settings</h1>
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <section className="surface-card rounded-xl border p-5 shadow-sm">
           <h2 className="text-base font-semibold">Theme preference</h2>
           <p className="mt-1 text-sm text-slate-600">Switch between light, dark, or system modes.</p>
           <div className="mt-4 flex gap-3">
@@ -1441,7 +2148,7 @@ export default function Settings() {
             })}
           </div>
         </section>
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <section className="surface-card rounded-xl border p-5 shadow-sm">
           <p className="text-sm text-slate-500">
             Additional administrative settings are only available to workspace admins.
           </p>
@@ -1459,7 +2166,7 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto rounded-full border bg-white p-1 shadow-sm">
+      <div className="flex gap-2 overflow-x-auto rounded-full border bg-white/90 p-1 shadow-sm dark:border-slate-600/60 dark:bg-slate-800/60 theme-glass:bg-slate-800/40">
         {Tabs.map((tab) => {
           const active = tab.id === activeTab
           return (
@@ -1508,6 +2215,20 @@ export default function Settings() {
             hideOnAppIds: [],
           }}
           onChange={(headerCfg) => setDraft((prev) => ({ ...prev, header: headerCfg }))}
+        />
+      )}
+
+      {activeTab === 'fab' && (
+        <PillMenuTab
+          pillMenu={draft.pillMenu ?? appSettings.pillMenu}
+          onChange={(pillMenuCfg) => setDraft((prev) => ({ ...prev, pillMenu: pillMenuCfg }))}
+        />
+      )}
+
+      {activeTab === 'floater' && (
+        <FloatingHeaderTab
+          config={draft.floatingHeader ?? appSettings.floatingHeader}
+          onChange={(cfg) => setDraft((prev) => ({ ...prev, floatingHeader: cfg }))}
         />
       )}
 

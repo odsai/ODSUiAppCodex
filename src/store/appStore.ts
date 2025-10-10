@@ -74,7 +74,7 @@ export type AuthConfig = {
 export type AppSettings = {
   apps: AppConfig[]
   appearance: {
-    theme: 'light' | 'dark' | 'system'
+    theme: 'light' | 'dark' | 'system' | 'glass'
     brandColor: string
     title: string
     intro: string
@@ -83,11 +83,14 @@ export type AppSettings = {
     iconDataUrl?: string
     palettes: ColorPalette[]
     selectedPaletteId: string
+    showLogo: boolean
   }
   courses: { allowSelfEnroll: boolean }
   lms: LmsSettings
   auth: AuthConfig
   header?: HeaderSettings
+  pillMenu: PillMenuSettings
+  floatingHeader?: PillMenuSettings
   misc?: Record<string, unknown>
   updatedAt: string
   updatedBy?: string
@@ -109,13 +112,16 @@ export type HeaderSettings = {
   sectionOrder: HeaderSectionKey[]
   minWidth: number
   maxWidth: number
+  horizontalPadding: number
+  itemGap: number
+  iconScale: number
   railColor: string
   shadowOpacity: number
   collapsedOpacity: number
   logoDataUrl?: string
 }
 
-export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home' | 'spacer'
+export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home' | 'spacer' | 'pin'
 
 export type HeaderMenuItem = {
   id: string
@@ -124,6 +130,30 @@ export type HeaderMenuItem = {
   url: string
   enabled?: boolean
   group?: 'site'
+}
+
+export type PillMenuSettings = {
+  enabled: boolean
+  allowDrag: boolean
+  defaultPin: 'auto' | 'open' | 'closed'
+  showDashboard: boolean
+  showLms: boolean
+  showSettings: boolean
+  showLogout: boolean
+  includeApps: boolean
+  density: 'comfortable' | 'compact'
+  style: 'light' | 'dark' | 'glass'
+  fabIcon: string
+  fabSize: number
+  fabBackground: string
+  fabForeground: string
+  stackBackground: string
+  stackBorder: string
+  stackOpacity: number
+  stackBlur: number
+  tooltipSide: 'auto' | 'left' | 'right'
+  menuScale: number
+  panelPadding: number
 }
 
 const BASE_APPS: AppConfig[] = []
@@ -196,6 +226,30 @@ const DEFAULT_LMS: LmsSettings = {
     maxQuizAttempts: 3,
   },
   recentCoursesLimit: 6,
+}
+
+const DEFAULT_PILL_MENU: PillMenuSettings = {
+  enabled: true,
+  allowDrag: true,
+  defaultPin: 'auto',
+  showDashboard: true,
+  showLms: true,
+  showSettings: true,
+  showLogout: true,
+  includeApps: true,
+  density: 'comfortable',
+  style: 'glass',
+  fabIcon: 'FiGrid',
+  fabSize: 56,
+  fabBackground: 'var(--brand-color)',
+  fabForeground: '#FFFFFF',
+  stackBackground: 'rgba(255,255,255,0.85)',
+  stackBorder: 'rgba(148, 163, 184, 0.35)',
+  stackOpacity: 0.9,
+  stackBlur: 12,
+  tooltipSide: 'auto',
+  menuScale: 1,
+  panelPadding: 12,
 }
 
 const cloneBaseApps = () => BASE_APPS.map((app) => ({ ...app }))
@@ -284,12 +338,15 @@ const createDefaultAppSettings = (): AppSettings => {
       title: 'Welcome to ODSAiStudio!',
       intro: 'Unified interface for OpenSource AI tools in Design Pedagogy.',
       introAlignment: 'center',
+      showLogo: true,
       palettes,
       selectedPaletteId: palettes[0]?.id ?? 'palette-classic',
     },
     courses: { allowSelfEnroll: false },
     lms: { ...DEFAULT_LMS },
     auth: { ...DEFAULT_AUTH },
+    pillMenu: { ...DEFAULT_PILL_MENU },
+    floatingHeader: { ...DEFAULT_PILL_MENU, enabled: false, defaultPin: 'open' },
     header: {
       enabled: true,
       autoHide: true,
@@ -303,9 +360,12 @@ const createDefaultAppSettings = (): AppSettings => {
       edgeReveal: true,
       railHeight: 10,
       menuItems: [],
-      sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'],
-      minWidth: 0,
+      sectionOrder: ['logo', 'apps', 'site', 'search', 'auth', 'pin'],
+      minWidth: 340,
       maxWidth: 960,
+      horizontalPadding: 18,
+      itemGap: 10,
+      iconScale: 1,
       railColor: '',
       shadowOpacity: 0.08,
       collapsedOpacity: 0,
@@ -318,6 +378,11 @@ const createDefaultAppSettings = (): AppSettings => {
 const normalizeAppSettings = (incoming: unknown): AppSettings => {
   const record: Record<string, unknown> = isRecord(incoming) ? incoming : {}
   const defaults = createDefaultAppSettings()
+
+  const clampNumber = (value: unknown, min: number, max: number, fallback: number) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return fallback
+    return Math.min(max, Math.max(min, value))
+  }
 
   let apps: AppConfig[]
   if (Array.isArray(record.apps) && record.apps.length) {
@@ -371,8 +436,9 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
   const theme =
     appearanceRecord.theme === 'light' ||
     appearanceRecord.theme === 'dark' ||
-    appearanceRecord.theme === 'system'
-      ? (appearanceRecord.theme as 'light' | 'dark' | 'system')
+    appearanceRecord.theme === 'system' ||
+    appearanceRecord.theme === 'glass'
+      ? (appearanceRecord.theme as AppSettings['appearance']['theme'])
       : defaults.appearance.theme
 
   return {
@@ -389,6 +455,10 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           ? (appearanceRecord.intro as string)
           : defaults.appearance.intro,
       introAlignment,
+      showLogo:
+        appearanceRecord.showLogo === false
+          ? false
+          : defaults.appearance.showLogo ?? true,
       logoDataUrl:
         typeof appearanceRecord.logoDataUrl === 'string'
           ? (appearanceRecord.logoDataUrl as string)
@@ -534,35 +604,66 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           .filter((m) => m.url)
       })(),
       sectionOrder: (() => {
-        const allowed: HeaderSectionKey[] = ['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home', 'spacer']
-        if (!isRecord(record.header)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
+        const allowed: HeaderSectionKey[] = ['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home', 'spacer', 'pin']
+        if (!isRecord(record.header)) {
+          const base = [...(defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth', 'pin'])]
+          const autoHideDefault = defaults.header?.autoHide ?? true
+          return autoHideDefault && !base.includes('pin') ? [...base, 'pin'] : base
+        }
         const raw = (record.header as Record<string, unknown>).sectionOrder
-        if (!Array.isArray(raw)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
-        const result: HeaderSectionKey[] = []
+        const deduped: HeaderSectionKey[] = []
         const seen = new Set<string>()
-        for (const value of raw as unknown[]) {
+        const iterate = Array.isArray(raw) ? (raw as unknown[]) : []
+        for (const value of iterate) {
           if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) continue
           if (value === 'spacer') {
-            result.push('spacer')
+            deduped.push('spacer')
             continue
           }
           if (seen.has(value)) continue
           seen.add(value)
-          result.push(value as HeaderSectionKey)
+          deduped.push(value as HeaderSectionKey)
         }
-        return result.length ? result : (defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth'])
+        if (!deduped.length) {
+          deduped.push(...(defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth', 'pin']))
+        }
+        const autoHide =
+          typeof (record.header as Record<string, unknown>).autoHide === 'boolean'
+            ? Boolean((record.header as Record<string, unknown>).autoHide)
+            : defaults.header?.autoHide ?? true
+        if (autoHide && !deduped.includes('pin')) deduped.push('pin')
+        return deduped
       })(),
       minWidth: (() => {
-        if (!isRecord(record.header)) return defaults.header?.minWidth ?? 0
-        const value = (record.header as Record<string, unknown>).minWidth
-        if (typeof value !== 'number' || Number.isNaN(value)) return defaults.header?.minWidth ?? 0
-        if (value <= 0) return 0
-        return Math.max(320, Math.min(1600, value))
+        if (isRecord(record.header) && typeof (record.header as Record<string, unknown>).minWidth === 'number') {
+          return Math.max(280, Math.min(960, (record.header as Record<string, unknown>).minWidth as number))
+        }
+        return defaults.header?.minWidth ?? 340
       })(),
-      maxWidth:
-        isRecord(record.header) && typeof (record.header as Record<string, unknown>).maxWidth === 'number'
-          ? Math.max(600, Math.min(2000, (record.header as Record<string, unknown>).maxWidth as number))
-          : defaults.header?.maxWidth ?? 960,
+      maxWidth: (() => {
+        const minValue = (() => {
+          if (isRecord(record.header) && typeof (record.header as Record<string, unknown>).minWidth === 'number') {
+            return Math.max(280, Math.min(960, (record.header as Record<string, unknown>).minWidth as number))
+          }
+          return defaults.header?.minWidth ?? 340
+        })()
+        if (isRecord(record.header) && typeof (record.header as Record<string, unknown>).maxWidth === 'number') {
+          return Math.max(minValue + 20, Math.min(1600, (record.header as Record<string, unknown>).maxWidth as number))
+        }
+        return Math.max(minValue + 20, defaults.header?.maxWidth ?? 960)
+      })(),
+      horizontalPadding:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).horizontalPadding === 'number'
+          ? Math.max(8, Math.min(48, (record.header as Record<string, unknown>).horizontalPadding as number))
+          : defaults.header?.horizontalPadding ?? 18,
+      itemGap:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).itemGap === 'number'
+          ? Math.max(4, Math.min(28, (record.header as Record<string, unknown>).itemGap as number))
+          : defaults.header?.itemGap ?? 10,
+      iconScale:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).iconScale === 'number'
+          ? Math.max(0.75, Math.min(1.5, (record.header as Record<string, unknown>).iconScale as number))
+          : defaults.header?.iconScale ?? 1,
       railColor:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).railColor === 'string'
           ? ((record.header as Record<string, unknown>).railColor as string)
@@ -580,6 +681,103 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           ? ((record.header as Record<string, unknown>).logoDataUrl as string)
           : defaults.header?.logoDataUrl,
     },
+    pillMenu: (() => {
+      const fallback = defaults.pillMenu ?? DEFAULT_PILL_MENU
+      if (!isRecord(record.pillMenu)) return { ...fallback }
+      const raw = record.pillMenu as Record<string, unknown>
+      const defaultPin =
+        raw.defaultPin === 'open' || raw.defaultPin === 'closed' || raw.defaultPin === 'auto'
+          ? (raw.defaultPin as PillMenuSettings['defaultPin'])
+          : fallback.defaultPin
+      const density = raw.density === 'compact' ? 'compact' : 'comfortable'
+      const style =
+        raw.style === 'light' || raw.style === 'dark' || raw.style === 'glass'
+          ? (raw.style as PillMenuSettings['style'])
+          : fallback.style
+      const tooltipSide =
+        raw.tooltipSide === 'left' || raw.tooltipSide === 'right' || raw.tooltipSide === 'auto'
+          ? (raw.tooltipSide as PillMenuSettings['tooltipSide'])
+          : fallback.tooltipSide
+      return {
+        enabled: raw.enabled !== undefined ? !!raw.enabled : fallback.enabled,
+        allowDrag: raw.allowDrag !== undefined ? !!raw.allowDrag : fallback.allowDrag,
+        defaultPin,
+        showDashboard: raw.showDashboard !== undefined ? !!raw.showDashboard : fallback.showDashboard,
+        showLms: raw.showLms !== undefined ? !!raw.showLms : fallback.showLms,
+        showSettings: raw.showSettings !== undefined ? !!raw.showSettings : fallback.showSettings,
+        showLogout: raw.showLogout !== undefined ? !!raw.showLogout : fallback.showLogout,
+        includeApps: raw.includeApps !== undefined ? !!raw.includeApps : fallback.includeApps,
+        density,
+        style,
+        fabSize: clampNumber(raw.fabSize, 48, 80, fallback.fabSize),
+        fabIcon:
+          typeof raw.fabIcon === 'string' && raw.fabIcon
+            ? (raw.fabIcon as string)
+            : fallback.fabIcon,
+        fabBackground:
+          typeof raw.fabBackground === 'string' && raw.fabBackground
+            ? (raw.fabBackground as string)
+            : fallback.fabBackground,
+        fabForeground:
+          typeof raw.fabForeground === 'string' && raw.fabForeground
+            ? (raw.fabForeground as string)
+            : fallback.fabForeground,
+        stackBackground:
+          typeof raw.stackBackground === 'string' && raw.stackBackground
+            ? (raw.stackBackground as string)
+            : fallback.stackBackground,
+        stackBorder:
+          typeof raw.stackBorder === 'string' && raw.stackBorder
+            ? (raw.stackBorder as string)
+            : fallback.stackBorder,
+        stackOpacity: clampNumber(raw.stackOpacity, 0, 1, fallback.stackOpacity),
+        stackBlur: clampNumber(raw.stackBlur, 0, 32, fallback.stackBlur),
+        tooltipSide,
+        menuScale: clampNumber(raw.menuScale, 0.6, 1.4, fallback.menuScale ?? 1),
+        panelPadding: clampNumber(raw.panelPadding, 4, 32, fallback.panelPadding ?? 12),
+      }
+    })(),
+    floatingHeader: (() => {
+      const fallback = defaults.floatingHeader ?? { ...DEFAULT_PILL_MENU, enabled: false, defaultPin: 'open' as const }
+      if (!isRecord(record.floatingHeader)) return { ...fallback }
+      const raw = record.floatingHeader as Record<string, unknown>
+      const defaultPin =
+        raw.defaultPin === 'open' || raw.defaultPin === 'closed' || raw.defaultPin === 'auto'
+          ? (raw.defaultPin as PillMenuSettings['defaultPin'])
+          : fallback.defaultPin
+      const density = raw.density === 'compact' ? 'compact' : 'comfortable'
+      const style =
+        raw.style === 'light' || raw.style === 'dark' || raw.style === 'glass'
+          ? (raw.style as PillMenuSettings['style'])
+          : fallback.style
+      const tooltipSide =
+        raw.tooltipSide === 'left' || raw.tooltipSide === 'right' || raw.tooltipSide === 'auto'
+          ? (raw.tooltipSide as PillMenuSettings['tooltipSide'])
+          : fallback.tooltipSide
+      return {
+        enabled: raw.enabled !== undefined ? !!raw.enabled : fallback.enabled,
+        allowDrag: raw.allowDrag !== undefined ? !!raw.allowDrag : fallback.allowDrag,
+        defaultPin,
+        showDashboard: raw.showDashboard !== undefined ? !!raw.showDashboard : fallback.showDashboard,
+        showLms: raw.showLms !== undefined ? !!raw.showLms : fallback.showLms,
+        showSettings: raw.showSettings !== undefined ? !!raw.showSettings : fallback.showSettings,
+        showLogout: raw.showLogout !== undefined ? !!raw.showLogout : fallback.showLogout,
+        includeApps: raw.includeApps !== undefined ? !!raw.includeApps : fallback.includeApps,
+        density,
+        style,
+        fabSize: clampNumber(raw.fabSize, 48, 80, fallback.fabSize),
+        fabIcon: typeof raw.fabIcon === 'string' && raw.fabIcon ? (raw.fabIcon as string) : fallback.fabIcon,
+        fabBackground: typeof raw.fabBackground === 'string' && raw.fabBackground ? (raw.fabBackground as string) : fallback.fabBackground,
+        fabForeground: typeof raw.fabForeground === 'string' && raw.fabForeground ? (raw.fabForeground as string) : fallback.fabForeground,
+        stackBackground: typeof raw.stackBackground === 'string' && raw.stackBackground ? (raw.stackBackground as string) : fallback.stackBackground,
+        stackBorder: typeof raw.stackBorder === 'string' && raw.stackBorder ? (raw.stackBorder as string) : fallback.stackBorder,
+        stackOpacity: clampNumber(raw.stackOpacity, 0, 1, fallback.stackOpacity),
+        stackBlur: clampNumber(raw.stackBlur, 0, 32, fallback.stackBlur),
+        tooltipSide,
+        menuScale: clampNumber(raw.menuScale, 0.6, 1.4, fallback.menuScale ?? 1),
+        panelPadding: clampNumber(raw.panelPadding, 4, 32, fallback.panelPadding ?? 12),
+      }
+    })(),
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
     updatedBy: typeof record.updatedBy === 'string' ? (record.updatedBy as string) : defaults.updatedBy,
@@ -608,6 +806,10 @@ type AppState = {
   courses: Course[]
   appSettings: AppSettings
   settingsVersion: number | null
+  preview: {
+    pillMenu?: Partial<PillMenuSettings>
+    floatingHeader?: Partial<PillMenuSettings>
+  }
 
   // Actions
   setTheme: (t: AppState['theme']) => void
@@ -620,6 +822,8 @@ type AppState = {
   selectCourse: (id: string) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   hydrateSettings: (settings: AppSettings, version?: number | null) => void
+  setPreview: (patch: Partial<AppState['preview']>) => void
+  clearPreview: () => void
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -648,6 +852,7 @@ export const useAppStore = create<AppState>()(
       ],
       appSettings: createDefaultAppSettings(),
       settingsVersion: null,
+      preview: {},
 
       // Actions
       setTheme: (t) => set({ theme: t }),
@@ -739,6 +944,18 @@ export const useAppStore = create<AppState>()(
           ...patch,
           appearance: { ...current.appearance, ...patch?.appearance },
           courses: { ...current.courses, ...patch?.courses },
+          header:
+            patch?.header !== undefined
+              ? { ...(current.header ?? createDefaultAppSettings().header), ...patch.header }
+              : current.header,
+          pillMenu:
+            patch?.pillMenu !== undefined
+              ? { ...(current.pillMenu ?? createDefaultAppSettings().pillMenu), ...patch.pillMenu }
+              : current.pillMenu,
+          floatingHeader:
+            patch?.floatingHeader !== undefined
+              ? { ...(current.floatingHeader ?? createDefaultAppSettings().floatingHeader), ...patch.floatingHeader }
+              : current.floatingHeader,
           apps: patch?.apps ?? current.apps,
           auth: { ...current.auth, ...patch?.auth },
           updatedAt: now(),
@@ -748,6 +965,14 @@ export const useAppStore = create<AppState>()(
 
       hydrateSettings: (settings, version) => {
         set({ appSettings: normalizeAppSettings(settings), settingsVersion: version ?? null })
+      },
+
+      setPreview: (patch) => {
+        set((state) => ({ preview: { ...state.preview, ...patch } }))
+      },
+
+      clearPreview: () => {
+        set({ preview: {} })
       },
     }),
     {

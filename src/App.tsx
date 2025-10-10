@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import PillMenu from './components/PillMenu'
+import FloatingHeaderMenu from './components/FloatingHeaderMenu'
 import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import OWUI from './pages/OWUI'
@@ -94,10 +95,24 @@ const App = () => {
   // Apply dark class based on theme preference
   useEffect(() => {
     const root = document.documentElement
+    const body = document.body
     const preferDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    const isDark = theme === 'dark' || (theme === 'system' && preferDark)
-    root.classList.toggle('dark', isDark)
-  }, [theme])
+    let resolved: 'light' | 'dark' | 'glass'
+    if (appearance.theme === 'glass') {
+      resolved = 'glass'
+    } else if (appearance.theme === 'light' || appearance.theme === 'dark') {
+      resolved = appearance.theme
+    } else if (theme === 'light' || theme === 'dark') {
+      resolved = theme
+    } else {
+      resolved = preferDark ? 'dark' : 'light'
+    }
+    root.classList.toggle('dark', resolved === 'dark' || resolved === 'glass')
+    root.classList.toggle('theme-light', resolved === 'light')
+    root.classList.toggle('theme-dark', resolved === 'dark')
+    root.classList.toggle('theme-glass', resolved === 'glass')
+    body.dataset.surface = resolved
+  }, [appearance.theme, theme])
 
   useEffect(() => {
     const root = document.documentElement
@@ -155,6 +170,9 @@ const App = () => {
     <>
       <a href="#main" className="skip-link">Skip to content</a>
       <HeaderBar />
+      {signedIn && (
+        <FloatingHeaderMenu setRoute={(r: Route) => setRoute(r)} onDashboard={() => setRoute('/dashboard')} />
+      )}
       <main id="main" className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'}`}>
       {/* Error boundary helps avoid blank screens on unexpected render errors */}
       <ErrorBoundary>
