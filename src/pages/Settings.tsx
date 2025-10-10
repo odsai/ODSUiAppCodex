@@ -611,6 +611,17 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           />
         </div>
         <div>
+          <label className="block text-sm font-medium">Collapsed rail height (px)</label>
+          <input
+            type="number"
+            min={4}
+            max={40}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.railHeight ?? 10}
+            onChange={(e) => onChange({ ...header, railHeight: Math.max(4, Math.min(40, Number.parseInt(e.target.value, 10) || 10)) })}
+          />
+        </div>
+        <div>
           <label className="block text-sm font-medium">Corner rounding</label>
           <select
             className="mt-1 w-full rounded border px-3 py-2"

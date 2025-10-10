@@ -104,6 +104,7 @@ export type HeaderSettings = {
   compact: boolean
   hideOnAppIds: string[]
   edgeReveal: boolean
+  railHeight: number // collapsed rail height in px
 }
 
 const BASE_APPS: AppConfig[] = []
@@ -281,6 +282,7 @@ const createDefaultAppSettings = (): AppSettings => {
       compact: true,
       hideOnAppIds: [],
       edgeReveal: true,
+      railHeight: 10,
     },
     updatedAt: new Date().toISOString(),
   }
@@ -479,6 +481,10 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).edgeReveal === 'boolean'
           ? Boolean((record.header as Record<string, unknown>).edgeReveal)
           : defaults.header?.edgeReveal ?? true,
+      railHeight:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).railHeight === 'number'
+          ? Math.max(4, Math.min(40, (record.header as Record<string, unknown>).railHeight as number))
+          : defaults.header?.railHeight ?? 10,
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,

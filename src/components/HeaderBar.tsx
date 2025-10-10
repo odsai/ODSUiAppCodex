@@ -57,7 +57,7 @@ export default function HeaderBar() {
 
   const enabled = !!cfg.enabled
   // overlay-only, thin rail expands on hover
-  const railHeight = 10
+  const railHeight = Math.max(4, Math.min(40, (cfg as unknown as { railHeight?: number }).railHeight ?? 10))
 
   const expandedHeight = Math.max(40, cfg.height || 56)
   const roundedClass =
@@ -120,7 +120,9 @@ export default function HeaderBar() {
           style={{
             height: open ? expandedHeight : railHeight,
             background: open ? undefined : 'var(--brand-color)',
-            transition: 'height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out, transform 180ms ease-out',
+            borderColor: open ? undefined : 'transparent',
+            boxShadow: open ? '0 6px 18px rgba(0,0,0,0.08)' : 'none',
+            transition: 'height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out, transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out',
           }}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
