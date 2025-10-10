@@ -32,6 +32,15 @@ npm install
 npm run dev
 ```
 
+## Deploy to Azure SWA
+This repo includes a ready-to-use GitHub Actions workflow: `.github/workflows/azure-static-web-apps.yml`.
+
+1) Create an Azure Static Web App (Build preset: Vite)
+2) In GitHub → Settings → Secrets and variables → Actions, add:
+   - `AZURE_STATIC_WEB_APPS_API_TOKEN` (value = SWA Deployment Token from Azure)
+   - Optional: `VITE_APPINSIGHTS_CONNECTION_STRING` (to enable SPA telemetry)
+3) Push to `main` — the workflow builds (`npm ci && npm run build`) and deploys `dist/`.
+
 ## Content Security Policy (CSP)
 The app ships with a safe-by-default CSP in `staticwebapp.config.json`. When embedding external tools (e.g., OWUI, Penpot, Flowise), whitelist their domains under `frame-src` and `connect-src`.
 
@@ -89,3 +98,19 @@ npm run preview
 
 Vite preview runs on port 4173 by default.
 
+## Next Steps (Ops Checklist)
+- Verify SWA deploy run and site health
+  - `gh run list --workflow azure-static-web-apps.yml --limit 5`
+  - `curl -I https://<your-swa-host>`
+- Frontend telemetry (optional, recommended)
+  - Add `VITE_APPINSIGHTS_CONNECTION_STRING` as a GitHub secret; SWA workflows pass it at build time
+- CSP updates
+  - Add your real tool and API domains to `connect-src`/`frame-src` in `staticwebapp.config.json` (prod) and dev config
+- Alerts (optional, recommended)
+  - Deploy metric alerts via Bicep: `infra/bicep/main.bicep` with `deployAlerts=true` and your App Insights + Action Group IDs
+- Redis (later, for scale)
+  - Provision via Bicep with `deployRedis=true`; wire into API as needed
+- LMS API (later)
+  - Deploy as a Container App; set CORS to SWA host; update Settings → LMS `apiBaseUrl`; add API host under CSP `connect-src`
+- Testing
+  - Consider adding E2E (Playwright) and environment-specific alert thresholds
