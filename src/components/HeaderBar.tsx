@@ -14,12 +14,14 @@ export default function HeaderBar() {
   const apps = useAppStore((s) => s.appSettings.apps)
   const setRoute = useAppStore((s) => s.setRoute)
   const updateSettings = useAppStore((s) => s.updateSettings)
+  const currentRoute = useAppStore((s) => s.route)
   const signedIn = useAppStore((s) => s.signedIn)
   const logout = useAppStore((s) => s.logout)
   const lmsEnabled = useAppStore((s) => s.appSettings.lms.enabled)
 
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(true)
+  const [focusedIdx, setFocusedIdx] = useState<number>(-1)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -85,11 +87,18 @@ export default function HeaderBar() {
         'flex items-center justify-center px-2',
       )}
     >
+      {isFixed && cfg.edgeReveal && (currentRoute === '/app' || cfg.autoHide || cfg.hideOnApps) && (
+        <div
+          className="fixed left-0 right-0 top-0 z-20 h-2 opacity-0"
+          onMouseEnter={() => setOpen(true)}
+          aria-hidden
+        />
+      )}
       {!enabled ? null : (
         <header
           className={classNames(
-          classNames(
-            isFixed ? 'mt-2' : 'mt-0',
+            classNames(
+              isFixed ? 'mt-2' : 'mt-0',
             'w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
           ),
           heightClass,
@@ -100,9 +109,9 @@ export default function HeaderBar() {
               : 'opacity-60 -translate-y-8 hover:translate-y-0 hover:opacity-100'
             : 'opacity-100 translate-y-0',
         )}
-        onMouseEnter={() => isFixed && cfg.autoHide && setOpen(true)}
-        onMouseLeave={() => isFixed && cfg.autoHide && !cfg.pinned && setOpen(false)}
-      >
+          onMouseEnter={() => isFixed && (cfg.autoHide || cfg.hideOnApps) && setOpen(true)}
+          onMouseLeave={() => isFixed && (cfg.autoHide || cfg.hideOnApps) && !cfg.pinned && setOpen(false)}
+          >
         <div className="flex h-full items-center justify-between gap-3 px-3">
           {/* Left: Logo / Title */}
           <button
@@ -148,23 +157,50 @@ export default function HeaderBar() {
               <div className="relative">
                 <input
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value)
+                    setFocusedIdx(-1)
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      if (entries.length) entries[0].action()
-                      else if (query.trim()) onPick({ type: 'web', url: `https://opendesignschool.ai/?s=${encodeURIComponent(query.trim())}` })
+                    if (!query) return
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      setFocusedIdx((i) => Math.min(i + 1, entries.length))
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setFocusedIdx((i) => Math.max(i - 1, -1))
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (focusedIdx >= 0 && focusedIdx < entries.length) entries[focusedIdx].action()
+                      else if (query.trim())
+                        onPick({ type: 'web', url: `https://opendesignschool.ai/?s=${encodeURIComponent(query.trim())}` })
+                    } else if (e.key === 'Escape') {
+                      setQuery('')
+                      setFocusedIdx(-1)
                     }
                   }}
                   placeholder="Search apps, pages, or ODSAi…"
                   className="w-56 rounded border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                  role="combobox"
+                  aria-expanded={!!query}
+                  aria-controls="header-search-list"
                 />
                 {query && (
-                  <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-auto rounded border bg-white shadow">
-                    {entries.map((e) => (
+                  <div
+                    id="header-search-list"
+                    className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-auto rounded border bg-white shadow"
+                    role="listbox"
+                  >
+                    {entries.map((e, idx) => (
                       <button
                         key={e.key}
                         onClick={e.action}
-                        className="block w-full truncate px-2 py-1 text-left text-sm hover:bg-slate-50"
+                        role="option"
+                        aria-selected={focusedIdx === idx}
+                        className={classNames(
+                          'block w-full truncate px-2 py-1 text-left text-sm',
+                          focusedIdx === idx ? 'bg-slate-100' : 'hover:bg-slate-50',
+                        )}
                       >
                         {e.label}
                       </button>

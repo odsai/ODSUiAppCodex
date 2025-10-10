@@ -577,6 +577,12 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           <option value="fixed">Overlay (fixed)</option>
         </select>
       </Row>
+      <Row label="Hide header on embedded Apps (immersive)">
+        <input type="checkbox" checked={header.hideOnApps} onChange={(e) => onChange({ ...header, hideOnApps: e.target.checked })} />
+      </Row>
+      <Row label="Edge reveal (show when cursor hits top edge)">
+        <input type="checkbox" checked={header.edgeReveal} onChange={(e) => onChange({ ...header, edgeReveal: e.target.checked })} />
+      </Row>
       <Row label="Enable header bar">
         <input type="checkbox" checked={header.enabled} onChange={(e) => onChange({ ...header, enabled: e.target.checked })} />
       </Row>

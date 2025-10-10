@@ -103,6 +103,8 @@ export type HeaderSettings = {
   showSearch: boolean
   menuFromApps: boolean
   position: 'fixed' | 'static'
+  hideOnApps: boolean
+  edgeReveal: boolean
 }
 
 const BASE_APPS: AppConfig[] = []
@@ -279,6 +281,8 @@ const createDefaultAppSettings = (): AppSettings => {
       showSearch: true,
       menuFromApps: true,
       position: 'static',
+      hideOnApps: true,
+      edgeReveal: true,
     },
     updatedAt: new Date().toISOString(),
   }
@@ -473,6 +477,14 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           ((record.header as Record<string, unknown>).position === 'static'))
           ? ((record.header as Record<string, unknown>).position as 'fixed' | 'static')
           : defaults.header?.position ?? 'static',
+      hideOnApps:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).hideOnApps === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).hideOnApps)
+          : defaults.header?.hideOnApps ?? true,
+      edgeReveal:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).edgeReveal === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).edgeReveal)
+          : defaults.header?.edgeReveal ?? true,
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
