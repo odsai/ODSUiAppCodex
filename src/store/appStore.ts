@@ -106,7 +106,10 @@ export type HeaderSettings = {
   edgeReveal: boolean
   railHeight: number // collapsed rail height in px
   menuItems: HeaderMenuItem[]
+  sectionOrder: HeaderSectionKey[]
 }
+
+export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home'
 
 export type HeaderMenuItem = {
   id: string
@@ -294,6 +297,7 @@ const createDefaultAppSettings = (): AppSettings => {
       edgeReveal: true,
       railHeight: 10,
       menuItems: [],
+      sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'],
     },
     updatedAt: new Date().toISOString(),
   }
@@ -512,6 +516,17 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
             return { id, label, icon, url, enabled, group }
           })
           .filter((m) => m.url)
+      })(),
+      sectionOrder: (() => {
+        const allowed: HeaderSectionKey[] = ['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home']
+        if (!isRecord(record.header)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
+        const raw = (record.header as Record<string, unknown>).sectionOrder
+        if (!Array.isArray(raw)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
+        const filtered = (raw as unknown[]).filter((x): x is HeaderSectionKey => typeof x === 'string' && (allowed as ReadonlyArray<string>).includes(x))
+        // ensure no duplicates and preserve order
+        const seen = new Set<string>()
+        const unique = filtered.filter((x) => (seen.has(x) ? false : (seen.add(x), true)))
+        return unique.length ? unique : (defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth'])
       })(),
     },
     misc: record.misc ?? defaults.misc,

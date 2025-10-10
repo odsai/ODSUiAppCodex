@@ -19,6 +19,7 @@ export default function HeaderBar() {
   const logout = useAppStore((s) => s.logout)
   const lmsEnabled = useAppStore((s) => s.appSettings.lms.enabled)
   const menuItems = useAppStore((s) => s.appSettings.header?.menuItems || [])
+  const sectionOrder = useAppStore((s) => s.appSettings.header?.sectionOrder || ['logo','apps','site','search','auth'])
 
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -102,6 +103,190 @@ export default function HeaderBar() {
     return list.filter((x) => x.label.toLowerCase().includes(q)).slice(0, 8)
   }, [apps, lmsEnabled, query, onPick])
 
+  const renderSection = (key: string) => {
+    switch (key) {
+      case 'logo':
+        return (
+          <button
+            key="logo"
+            className="flex items-center gap-2 text-sm font-semibold text-slate-800"
+            onClick={() => setRoute('/dashboard')}
+            aria-label="Go to dashboard"
+            title="Dashboard"
+          >
+            {cfg.showLogo && appearance.logoDataUrl ? (
+              <img src={appearance.logoDataUrl} alt="" className="h-6 w-6 object-contain" />
+            ) : (
+              <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
+            )}
+          </button>
+        )
+      case 'apps':
+        if (!cfg.menuFromApps) return null
+        return (
+          <nav key="apps" className="hidden md:flex items-center gap-2">
+            {apps
+              .filter((a) => a.enabled)
+              .slice(0, 6)
+              .map((a) => (
+                <button
+                  key={a.id}
+                  className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
+                  onClick={() => onPick({ type: 'app', id: a.id })}
+                  aria-label={`Open ${a.label}`}
+                  title={a.label}
+                >
+                  {a.iconImage ? (
+                    <img src={a.iconImage} alt="" className={cfg.compact ? 'h-4 w-4 object-contain' : 'h-5 w-5 object-contain'} />
+                  ) : (
+                    <span className="text-slate-700">{resolveIcon(a.icon, cfg.compact ? 14 : 16)}</span>
+                  )}
+                </button>
+              ))}
+          </nav>
+        )
+      case 'site':
+        return menuItems.length ? (
+          <nav key="site" className="hidden md:flex items-center gap-2">
+            {menuItems
+              .filter((m) => m.enabled !== false)
+              .map((m) => (
+                <button
+                  key={m.id}
+                  className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
+                  onClick={() => window.open(m.url, '_blank', 'noopener,noreferrer')}
+                  aria-label={m.label}
+                  title={m.label}
+                >
+                  <span className="text-slate-700">{resolveIcon(m.icon || 'FiLink', cfg.compact ? 14 : 16)}</span>
+                </button>
+              ))}
+          </nav>
+        ) : null
+      case 'search':
+        if (!cfg.showSearch) return null
+        return (
+          <div key="search" className="relative">
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setFocusedIdx(-1)
+              }}
+              onKeyDown={(e) => {
+                if (!query) return
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setFocusedIdx((i) => Math.min(i + 1, entries.length))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setFocusedIdx((i) => Math.max(i - 1, -1))
+                } else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (focusedIdx >= 0 && focusedIdx < entries.length) entries[focusedIdx].action()
+                  else if (query.trim())
+                    onPick({ type: 'web', url: `https://opendesignschool.ai/?s=${encodeURIComponent(query.trim())}` })
+                } else if (e.key === 'Escape') {
+                  setQuery('')
+                  setFocusedIdx(-1)
+                }
+              }}
+              placeholder="Search apps, pages, or ODSAi…"
+              className={classNames(
+                'rounded border focus:outline-none focus:ring-2 focus:ring-brand',
+                cfg.compact ? 'w-48 px-2 py-1 text-sm' : 'w-56 px-3 py-2 text-sm',
+              )}
+              role="combobox"
+              aria-expanded={!!query}
+              aria-controls="header-search-list"
+            />
+            {query && (
+              <div
+                id="header-search-list"
+                className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-auto rounded border bg-white shadow"
+                role="listbox"
+              >
+                {entries.map((e, idx) => (
+                  <button
+                    key={e.key}
+                    onClick={e.action}
+                    role="option"
+                    aria-selected={focusedIdx === idx}
+                    className={classNames(
+                      'block w-full truncate px-2 py-1 text-left text-sm',
+                      focusedIdx === idx ? 'bg-slate-100' : 'hover:bg-slate-50',
+                    )}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+                <button
+                  className="block w-full px-2 py-1 text-left text-sm text-slate-600 hover:bg-slate-50"
+                  onClick={() => onPick({ type: 'web', url: `https://opendesignschool.ai/?s=${encodeURIComponent(query.trim())}` })}
+                >
+                  Search opendesignschool.ai for “{query}”
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      case 'settings':
+        return (
+          <button
+            key="settings"
+            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            onClick={() => setRoute('/settings')}
+            aria-label="Settings"
+            title="Settings"
+          >
+            {resolveIcon('FiSettings', 16)}
+          </button>
+        )
+      case 'home':
+        return (
+          <button
+            key="home"
+            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            onClick={() => setRoute('/dashboard')}
+            aria-label="Home"
+            title="Home"
+          >
+            {resolveIcon('FiHome', 16)}
+          </button>
+        )
+      case 'auth':
+        return signedIn ? (
+          <button
+            key="auth-logout"
+            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            onClick={() => {
+              if (confirm('Log out?')) {
+                logout()
+                toast.info('Logged out')
+                setRoute('/dashboard')
+              }
+            }}
+            aria-label="Logout"
+            title="Logout"
+          >
+            {resolveIcon('FiLogOut', 16)}
+          </button>
+        ) : (
+          <button
+            key="auth-login"
+            className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
+            onClick={() => setRoute('/login')}
+            aria-label="Sign in"
+            title="Sign in"
+          >
+            {resolveIcon('FiLogIn', 16)}
+          </button>
+        )
+      default:
+        return null
+    }
+  }
+
   return (
     <div
       ref={containerRef}
@@ -136,155 +321,23 @@ export default function HeaderBar() {
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
-        <div className="flex h-full items-center justify-between gap-3 px-3" style={{ opacity: open ? 1 : 0, transition: 'opacity 160ms ease' }}>
-          {/* Left: Logo / Title */}
-          <button
-            className="flex items-center gap-2 text-sm font-semibold text-slate-800"
-            onClick={() => setRoute('/dashboard')}
-            aria-label="Go to dashboard"
-            title="Dashboard"
-          >
-            {cfg.showLogo && appearance.logoDataUrl ? (
-              <img src={appearance.logoDataUrl} alt="" className="h-6 w-6 object-contain" />
-            ) : (
-              <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
-            )}
-          </button>
-
-          {/* Middle: Menu from Apps */}
-          {cfg.menuFromApps && (
-            <nav className="hidden md:flex items-center gap-2">
-              {apps
-                .filter((a) => a.enabled)
-                .slice(0, 6)
-                .map((a) => (
-                  <button
-                    key={a.id}
-                    className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
-                    onClick={() => onPick({ type: 'app', id: a.id })}
-                    aria-label={`Open ${a.label}`}
-                    title={a.label}
-                  >
-                    {a.iconImage ? (
-                      <img src={a.iconImage} alt="" className={cfg.compact ? 'h-4 w-4 object-contain' : 'h-5 w-5 object-contain'} />
-                    ) : (
-                      <span className="text-slate-700">{resolveIcon(a.icon, cfg.compact ? 14 : 16)}</span>
-                    )}
-                  </button>
-                ))}
-            </nav>
-          )}
-
-          {/* Site menu group */}
-          {siteIconCount > 0 && (
-            <nav className="hidden md:flex items-center gap-2">
-              {menuItems
-                .filter((m) => m.enabled !== false)
-                .map((m) => (
-                  <button
-                    key={m.id}
-                    className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
-                    onClick={() => window.open(m.url, '_blank', 'noopener,noreferrer')}
-                    aria-label={m.label}
-                    title={m.label}
-                  >
-                    <span className="text-slate-700">{resolveIcon(m.icon || 'FiLink', cfg.compact ? 14 : 16)}</span>
-                  </button>
-                ))}
-            </nav>
-          )}
-
-          {/* Right: Search + Auth + Pin */}
-          <div className="flex items-center gap-2">
-            {cfg.showSearch && (
-              <div className="relative">
-                <input
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value)
-                    setFocusedIdx(-1)
-                  }}
-                  onKeyDown={(e) => {
-                    if (!query) return
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault()
-                      setFocusedIdx((i) => Math.min(i + 1, entries.length))
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault()
-                      setFocusedIdx((i) => Math.max(i - 1, -1))
-                    } else if (e.key === 'Enter') {
-                      e.preventDefault()
-                      if (focusedIdx >= 0 && focusedIdx < entries.length) entries[focusedIdx].action()
-                      else if (query.trim())
-                        onPick({ type: 'web', url: `https://opendesignschool.ai/?s=${encodeURIComponent(query.trim())}` })
-                    } else if (e.key === 'Escape') {
-                      setQuery('')
-                      setFocusedIdx(-1)
-                    }
-                  }}
-                  placeholder="Search apps, pages, or ODSAi…"
-                  className="w-56 rounded border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
-                  role="combobox"
-                  aria-expanded={!!query}
-                  aria-controls="header-search-list"
-                />
-                {query && (
-                  <div
-                    id="header-search-list"
-                    className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-auto rounded border bg-white shadow"
-                    role="listbox"
-                  >
-                    {entries.map((e, idx) => (
-                      <button
-                        key={e.key}
-                        onClick={e.action}
-                        role="option"
-                        aria-selected={focusedIdx === idx}
-                        className={classNames(
-                          'block w-full truncate px-2 py-1 text-left text-sm',
-                          focusedIdx === idx ? 'bg-slate-100' : 'hover:bg-slate-50',
-                        )}
-                      >
-                        {e.label}
-                      </button>
-                    ))}
-                    <button
-                      className="block w-full px-2 py-1 text-left text-sm text-slate-600 hover:bg-slate-50"
-                      onClick={() => onPick({ type: 'web', url: `https://opendesignschool.ai/?s=${encodeURIComponent(query.trim())}` })}
-                    >
-                      Search opendesignschool.ai for “{query}”
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {signedIn ? (
-              <button
-                className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
-                onClick={() => {
-                  if (confirm('Log out?')) {
-                    logout()
-                    toast.info('Logged out')
-                    setRoute('/dashboard')
-                  }
-                }}
-                aria-label="Logout"
-                title="Logout"
-              >
-                {resolveIcon('FiLogOut', 16)}
-              </button>
-            ) : (
-              <button
-                className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
-                onClick={() => setRoute('/login')}
-                aria-label="Sign in"
-                title="Sign in"
-              >
-                {resolveIcon('FiLogIn', 16)}
-              </button>
-            )}
-          </div>
+        <div className="flex h-full items-center gap-2 px-3" style={{ opacity: open ? 1 : 0, transition: 'opacity 160ms ease' }}>
+          {(() => {
+            const nodes: React.ReactNode[] = []
+            let prevGroup: string | null = null
+            const addSep = (key: string) => {
+              if ((key === 'apps' || key === 'site') && prevGroup && prevGroup !== key) {
+                nodes.push(<span key={`sep-${key}`} className="mx-1 h-4 w-px bg-slate-200/80" />)
+              }
+              if (key === 'apps' || key === 'site') prevGroup = key
+            }
+            ;(sectionOrder || ['logo','apps','site','search','auth']).forEach((key) => {
+              addSep(key)
+              const node = renderSection(key)
+              if (node) nodes.push(node)
+            })
+            return nodes
+          })()}
         </div>
       </header>
       )}
