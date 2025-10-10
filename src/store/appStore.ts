@@ -95,15 +95,14 @@ export type AppSettings = {
 
 export type HeaderSettings = {
   enabled: boolean
-  pinned: boolean
   autoHide: boolean
-  height: number // px
+  height: number // expanded height in px
   rounded: 'none' | 'sm' | 'md' | 'lg' | 'xl'
   showLogo: boolean
   showSearch: boolean
   menuFromApps: boolean
-  position: 'fixed' | 'static'
-  hideOnApps: boolean
+  compact: boolean
+  hideOnAppIds: string[]
   edgeReveal: boolean
 }
 
@@ -273,15 +272,14 @@ const createDefaultAppSettings = (): AppSettings => {
     auth: { ...DEFAULT_AUTH },
     header: {
       enabled: true,
-      pinned: true,
-      autoHide: false,
+      autoHide: true,
       height: 56,
       rounded: 'xl',
       showLogo: true,
       showSearch: true,
       menuFromApps: true,
-      position: 'static',
-      hideOnApps: true,
+      compact: true,
+      hideOnAppIds: [],
       edgeReveal: true,
     },
     updatedAt: new Date().toISOString(),
@@ -438,14 +436,10 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).enabled === 'boolean'
           ? Boolean((record.header as Record<string, unknown>).enabled)
           : defaults.header?.enabled ?? true,
-      pinned:
-        isRecord(record.header) && typeof (record.header as Record<string, unknown>).pinned === 'boolean'
-          ? Boolean((record.header as Record<string, unknown>).pinned)
-          : defaults.header?.pinned ?? true,
       autoHide:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).autoHide === 'boolean'
           ? Boolean((record.header as Record<string, unknown>).autoHide)
-          : defaults.header?.autoHide ?? false,
+          : defaults.header?.autoHide ?? true,
       height:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).height === 'number'
           ? ((record.header as Record<string, unknown>).height as number)
@@ -471,16 +465,16 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).menuFromApps === 'boolean'
           ? Boolean((record.header as Record<string, unknown>).menuFromApps)
           : defaults.header?.menuFromApps ?? true,
-      position:
-        isRecord(record.header) &&
-        (((record.header as Record<string, unknown>).position === 'fixed') ||
-          ((record.header as Record<string, unknown>).position === 'static'))
-          ? ((record.header as Record<string, unknown>).position as 'fixed' | 'static')
-          : defaults.header?.position ?? 'static',
-      hideOnApps:
-        isRecord(record.header) && typeof (record.header as Record<string, unknown>).hideOnApps === 'boolean'
-          ? Boolean((record.header as Record<string, unknown>).hideOnApps)
-          : defaults.header?.hideOnApps ?? true,
+      compact:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).compact === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).compact)
+          : defaults.header?.compact ?? true,
+      hideOnAppIds: (() => {
+        if (!isRecord(record.header)) return defaults.header?.hideOnAppIds ?? []
+        const h = record.header as Record<string, unknown>
+        const raw = h['hideOnAppIds']
+        return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : defaults.header?.hideOnAppIds ?? []
+      })(),
       edgeReveal:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).edgeReveal === 'boolean'
           ? Boolean((record.header as Record<string, unknown>).edgeReveal)

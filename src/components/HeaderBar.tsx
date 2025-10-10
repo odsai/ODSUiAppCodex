@@ -25,21 +25,35 @@ export default function HeaderBar() {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (!settings) return
-    setOpen(settings.pinned)
-  }, [settings])
+    // Start collapsed by default (thin rail)
+    setOpen(false)
+  }, [])
 
   // Fallback config to avoid undefined access during initial hydration
   const cfg = settings || {
     enabled: false,
-    pinned: true,
     autoHide: false,
     height: 56,
     rounded: 'xl' as const,
     showLogo: true,
     showSearch: true,
     menuFromApps: true,
+    compact: true,
+    hideOnAppIds: [],
+    edgeReveal: true,
   }
+
+  // per-app override: always hidden on certain embedded app IDs
+  const parseActiveAppId = () => {
+    if (typeof window === 'undefined') return null
+    const raw = (window.location.hash || '').replace(/^#/, '')
+    const [pathOnly, query = ''] = raw.split('?')
+    if (pathOnly !== '/app') return null
+    const params = new URLSearchParams(query)
+    return params.get('id')
+  }
+  const activeAppId = parseActiveAppId()
+  const hiddenForApp = currentRoute === '/app' && !!activeAppId && cfg.hideOnAppIds.includes(activeAppId)
 
   const enabled = !!cfg.enabled
   // overlay-only, thin rail expands on hover
@@ -88,14 +102,14 @@ export default function HeaderBar() {
         'flex items-center justify-center px-2',
       )}
     >
-      {cfg.edgeReveal && (currentRoute === '/app' || cfg.autoHide || cfg.hideOnApps) && (
+      {cfg.edgeReveal && (
         <div
           className="fixed left-0 right-0 top-0 z-20 h-2 opacity-0"
           onMouseEnter={() => setOpen(true)}
           aria-hidden
         />
       )}
-      {!enabled ? null : (
+      {!enabled || hiddenForApp ? null : (
         <header
           className={classNames(
             'w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
@@ -103,11 +117,15 @@ export default function HeaderBar() {
             roundedClass,
             open ? 'opacity-100 translate-y-0' : 'opacity-80 -translate-y-2',
           )}
-          style={{ height: open ? expandedHeight : railHeight }}
+          style={{
+            height: open ? expandedHeight : railHeight,
+            background: open ? undefined : 'var(--brand-color)',
+            transition: 'height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out, transform 180ms ease-out',
+          }}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
-        <div className="flex h-full items-center justify-between gap-3 px-3">
+        <div className="flex h-full items-center justify-between gap-3 px-3" style={{ opacity: open ? 1 : 0, transition: 'opacity 160ms ease' }}>
           {/* Left: Logo / Title */}
           <button
             className="flex items-center gap-2 text-sm font-semibold text-slate-800"
@@ -137,9 +155,9 @@ export default function HeaderBar() {
                     title={a.label}
                   >
                     {a.iconImage ? (
-                      <img src={a.iconImage} alt="" className="h-4 w-4 object-contain" />
+                      <img src={a.iconImage} alt="" className={cfg.compact ? 'h-4 w-4 object-contain' : 'h-5 w-5 object-contain'} />
                     ) : (
-                      <span className="text-slate-700">{resolveIcon(a.icon, 16)}</span>
+                      <span className="text-slate-700">{resolveIcon(a.icon, cfg.compact ? 14 : 16)}</span>
                     )}
                   </button>
                 ))}

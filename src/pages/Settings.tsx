@@ -577,8 +577,8 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           <option value="fixed">Overlay (fixed)</option>
         </select>
       </Row>
-      <Row label="Hide header on embedded Apps (immersive)">
-        <input type="checkbox" checked={header.hideOnApps} onChange={(e) => onChange({ ...header, hideOnApps: e.target.checked })} />
+      <Row label="Compact icons and spacing">
+        <input type="checkbox" checked={header.compact} onChange={(e) => onChange({ ...header, compact: e.target.checked })} />
       </Row>
       <Row label="Edge reveal (show when cursor hits top edge)">
         <input type="checkbox" checked={header.edgeReveal} onChange={(e) => onChange({ ...header, edgeReveal: e.target.checked })} />
@@ -586,10 +586,7 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
       <Row label="Enable header bar">
         <input type="checkbox" checked={header.enabled} onChange={(e) => onChange({ ...header, enabled: e.target.checked })} />
       </Row>
-      <Row label="Pinned">
-        <input type="checkbox" checked={header.pinned} onChange={(e) => onChange({ ...header, pinned: e.target.checked })} />
-      </Row>
-      <Row label="Auto-hide when not hovered">
+      <Row label="Auto-expand on hover">
         <input type="checkbox" checked={header.autoHide} onChange={(e) => onChange({ ...header, autoHide: e.target.checked })} />
       </Row>
       <Row label="Show logo">
@@ -626,6 +623,16 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
             <option value="lg">Large</option>
             <option value="xl">XL</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Always hide on App IDs (comma-separated)</label>
+          <input
+            className="mt-1 w-full rounded border px-3 py-2"
+            placeholder="app_abc123, app_xyz456"
+            value={(header.hideOnAppIds || []).join(', ')}
+            onChange={(e) => onChange({ ...header, hideOnAppIds: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+          />
+          <p className="mt-1 text-xs text-slate-500">When viewing /app with one of these IDs, the header rail is fully hidden to preserve native UI.</p>
         </div>
       </div>
       <p className="text-xs text-slate-500">The header bar mirrors the floating pill menu but sits at the top. Use it for quick access and search.</p>
@@ -1194,13 +1201,14 @@ export default function Settings() {
         <HeaderTab
           header={draft.header || {
             enabled: true,
-            pinned: true,
-            autoHide: false,
+            autoHide: true,
             height: 56,
             rounded: 'xl',
             showLogo: true,
             showSearch: true,
             menuFromApps: true,
+            compact: true,
+            hideOnAppIds: [],
           }}
           onChange={(headerCfg) => setDraft((prev) => ({ ...prev, header: headerCfg }))}
         />
