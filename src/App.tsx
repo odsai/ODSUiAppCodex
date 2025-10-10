@@ -14,6 +14,7 @@ import LmsDashboard from './lms/pages/Dashboard'
 import { Courses as LmsCourses, CourseDetail as LmsCourseDetail, LessonPlayer as LmsLessonPlayer } from './lms/pages'
 import { useAppStore, type Route } from './store/appStore'
 import Toaster from './components/Toaster'
+import HeaderBar from './components/HeaderBar'
 import { fetchWorkspaceSettings } from './utils/settingsClient'
 
 const App = () => {
@@ -153,7 +154,8 @@ const App = () => {
   return (
     <>
       <a href="#main" className="skip-link">Skip to content</a>
-      <main id="main" className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'}`}>
+      <HeaderBar />
+      <main id="main" className={`min-h-screen ${route === '/app' ? 'p-0' : 'p-6'} pt-20`}>
       {/* Error boundary helps avoid blank screens on unexpected render errors */}
       <ErrorBoundary>
         {page}

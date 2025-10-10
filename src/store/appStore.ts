@@ -87,9 +87,21 @@ export type AppSettings = {
   courses: { allowSelfEnroll: boolean }
   lms: LmsSettings
   auth: AuthConfig
+  header?: HeaderSettings
   misc?: Record<string, unknown>
   updatedAt: string
   updatedBy?: string
+}
+
+export type HeaderSettings = {
+  enabled: boolean
+  pinned: boolean
+  autoHide: boolean
+  height: number // px
+  rounded: 'none' | 'sm' | 'md' | 'lg' | 'xl'
+  showLogo: boolean
+  showSearch: boolean
+  menuFromApps: boolean
 }
 
 const BASE_APPS: AppConfig[] = []
@@ -256,6 +268,16 @@ const createDefaultAppSettings = (): AppSettings => {
     courses: { allowSelfEnroll: false },
     lms: { ...DEFAULT_LMS },
     auth: { ...DEFAULT_AUTH },
+    header: {
+      enabled: true,
+      pinned: true,
+      autoHide: false,
+      height: 56,
+      rounded: 'xl',
+      showLogo: true,
+      showSearch: true,
+      menuFromApps: true,
+    },
     updatedAt: new Date().toISOString(),
   }
 }
@@ -405,6 +427,45 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           : DEFAULT_LMS.recentCoursesLimit,
     },
     auth: normalizeAuthConfig(record.auth),
+    header: {
+      enabled:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).enabled === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).enabled)
+          : defaults.header?.enabled ?? true,
+      pinned:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).pinned === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).pinned)
+          : defaults.header?.pinned ?? true,
+      autoHide:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).autoHide === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).autoHide)
+          : defaults.header?.autoHide ?? false,
+      height:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).height === 'number'
+          ? ((record.header as Record<string, unknown>).height as number)
+          : defaults.header?.height ?? 56,
+      rounded:
+        isRecord(record.header) &&
+        ((record.header as Record<string, unknown>).rounded === 'none' ||
+          (record.header as Record<string, unknown>).rounded === 'sm' ||
+          (record.header as Record<string, unknown>).rounded === 'md' ||
+          (record.header as Record<string, unknown>).rounded === 'lg' ||
+          (record.header as Record<string, unknown>).rounded === 'xl')
+          ? ((record.header as Record<string, unknown>).rounded as HeaderSettings['rounded'])
+          : defaults.header?.rounded ?? 'xl',
+      showLogo:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).showLogo === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).showLogo)
+          : defaults.header?.showLogo ?? true,
+      showSearch:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).showSearch === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).showSearch)
+          : defaults.header?.showSearch ?? true,
+      menuFromApps:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).menuFromApps === 'boolean'
+          ? Boolean((record.header as Record<string, unknown>).menuFromApps)
+          : defaults.header?.menuFromApps ?? true,
+    },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
     updatedBy: typeof record.updatedBy === 'string' ? (record.updatedBy as string) : defaults.updatedBy,
