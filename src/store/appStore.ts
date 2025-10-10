@@ -114,7 +114,7 @@ export type HeaderSettings = {
   collapsedOpacity: number
 }
 
-export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home'
+export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home' | 'spacer'
 
 export type HeaderMenuItem = {
   id: string
@@ -303,11 +303,11 @@ const createDefaultAppSettings = (): AppSettings => {
       railHeight: 10,
       menuItems: [],
       sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'],
-      minWidth: 420,
+      minWidth: 0,
       maxWidth: 960,
       railColor: '',
       shadowOpacity: 0.08,
-      collapsedOpacity: 0.95,
+      collapsedOpacity: 0,
     },
     updatedAt: new Date().toISOString(),
   }
@@ -528,7 +528,7 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           .filter((m) => m.url)
       })(),
       sectionOrder: (() => {
-        const allowed: HeaderSectionKey[] = ['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home']
+        const allowed: HeaderSectionKey[] = ['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home', 'spacer']
         if (!isRecord(record.header)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
         const raw = (record.header as Record<string, unknown>).sectionOrder
         if (!Array.isArray(raw)) return defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth']
@@ -538,10 +538,13 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         const unique = filtered.filter((x) => (seen.has(x) ? false : (seen.add(x), true)))
         return unique.length ? unique : (defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth'])
       })(),
-      minWidth:
-        isRecord(record.header) && typeof (record.header as Record<string, unknown>).minWidth === 'number'
-          ? Math.max(320, Math.min(1600, (record.header as Record<string, unknown>).minWidth as number))
-          : defaults.header?.minWidth ?? 420,
+      minWidth: (() => {
+        if (!isRecord(record.header)) return defaults.header?.minWidth ?? 0
+        const value = (record.header as Record<string, unknown>).minWidth
+        if (typeof value !== 'number' || Number.isNaN(value)) return defaults.header?.minWidth ?? 0
+        if (value <= 0) return 0
+        return Math.max(320, Math.min(1600, value))
+      })(),
       maxWidth:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).maxWidth === 'number'
           ? Math.max(600, Math.min(2000, (record.header as Record<string, unknown>).maxWidth as number))
@@ -556,8 +559,8 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
           : defaults.header?.shadowOpacity ?? 0.08,
       collapsedOpacity:
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).collapsedOpacity === 'number'
-          ? Math.max(0.5, Math.min(1, (record.header as Record<string, unknown>).collapsedOpacity as number))
-          : defaults.header?.collapsedOpacity ?? 0.95,
+          ? Math.max(0, Math.min(1, (record.header as Record<string, unknown>).collapsedOpacity as number))
+          : defaults.header?.collapsedOpacity ?? 0,
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,

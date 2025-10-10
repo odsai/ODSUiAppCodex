@@ -443,7 +443,7 @@ const BrandingTab = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium">Logo upload</label>
+            <label className="block text-sm font-medium">Studio logo</label>
             <input
               type="file"
               accept="image/png, image/jpeg, image/svg+xml"
@@ -454,7 +454,7 @@ const BrandingTab = ({
             />
             {appearance.logoDataUrl && (
               <div className="mt-3 flex items-center gap-3">
-                <img src={appearance.logoDataUrl} alt="Logo" className="h-12" />
+                <img src={appearance.logoDataUrl} alt="Logo" className="h-12 w-auto max-w-[220px] object-contain" />
                 <button
                   type="button"
                   className="text-sm text-red-500"
@@ -464,6 +464,7 @@ const BrandingTab = ({
                 </button>
               </div>
             )}
+            <p className="mt-1 text-xs text-slate-500">Provide a transparent PNG/SVG at least 24px tall; width scales automatically.</p>
           </div>
           <div>
             <label className="block text-sm font-medium">Icon upload</label>
@@ -557,6 +558,7 @@ const BrandingTab = ({
 }
 
 const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (next: HeaderSettings) => void }) => {
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
   const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div className="flex items-center justify-between gap-3">
       <div className="text-sm text-slate-700">{label}</div>
@@ -665,15 +667,15 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Collapsed opacity (0.5–1)</label>
+          <label className="block text-sm font-medium">Collapsed content opacity (0–1)</label>
           <input
             type="number"
             step={0.01}
-            min={0.5}
+            min={0}
             max={1}
             className="mt-1 w-full rounded border px-3 py-2"
             value={header.collapsedOpacity}
-            onChange={(e) => onChange({ ...header, collapsedOpacity: Math.max(0.5, Math.min(1, Number(e.target.value))) })}
+            onChange={(e) => onChange({ ...header, collapsedOpacity: Math.max(0, Math.min(1, Number(e.target.value))) })}
           />
         </div>
         <div>
@@ -782,7 +784,23 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
         <h4 className="mb-2 text-sm font-semibold">Layout order</h4>
         <div className="flex flex-wrap items-center gap-2">
           {header.sectionOrder.map((k, idx) => (
-            <div key={`${k}-${idx}`} className="flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-xs">
+            <div
+              key={`${k}-${idx}`}
+              className={`flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-xs ${dragIndex === idx ? 'border-brand bg-brand/10' : ''}`}
+              draggable
+              onDragStart={() => setDragIndex(idx)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragIndex === null || dragIndex === idx) return
+                const next = [...header.sectionOrder]
+                const [moved] = next.splice(dragIndex, 1)
+                next.splice(idx, 0, moved)
+                setDragIndex(null)
+                onChange({ ...header, sectionOrder: next })
+              }}
+              onDragEnd={() => setDragIndex(null)}
+            >
               <span className="font-medium">{k}</span>
               <button
                 className="rounded border px-1"
@@ -832,7 +850,7 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
             }}
           >
             <option value="">+ Add section…</option>
-            {(['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home'] as const)
+            {(['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home', 'spacer'] as const)
               .filter((k) => !header.sectionOrder.includes(k))
               .map((k) => (
                 <option key={k} value={k}>{k}</option>
@@ -845,6 +863,7 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
             Reset order
           </button>
         </div>
+        <p className="mt-2 text-xs text-slate-500">Drag chips to reorder. Add &quot;spacer&quot; entries to create custom gaps between sections.</p>
       </div>
     </section>
   )

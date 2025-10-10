@@ -105,19 +105,19 @@ export default function HeaderBar() {
     return list.filter((x) => x.label.toLowerCase().includes(q)).slice(0, 8)
   }, [apps, lmsEnabled, query, onPick])
 
-  const renderSection = (key: string) => {
+  const renderSection = (key: string, idx: number) => {
     switch (key) {
       case 'logo':
         return (
           <button
-            key="logo"
+            key={`logo-${idx}`}
             className="flex items-center gap-2 text-sm font-semibold text-slate-800"
             onClick={() => setRoute('/dashboard')}
             aria-label="Go to dashboard"
             title="Dashboard"
           >
             {cfg.showLogo && appearance.logoDataUrl ? (
-              <img src={appearance.logoDataUrl} alt="" className="h-6 w-auto max-w-[140px] object-contain" />
+              <img src={appearance.logoDataUrl} alt="" className="h-6 w-auto max-w-[160px] object-contain" />
             ) : (
               <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
             )}
@@ -126,7 +126,7 @@ export default function HeaderBar() {
       case 'apps':
         if (!cfg.menuFromApps) return null
         return (
-          <nav key="apps" className="hidden md:flex items-center gap-2">
+          <nav key={`apps-${idx}`} className="hidden md:flex items-center gap-2">
             {apps
               .filter((a) => a.enabled)
               .slice(0, 6)
@@ -149,7 +149,7 @@ export default function HeaderBar() {
         )
       case 'site':
         return menuItems.length ? (
-          <nav key="site" className="hidden md:flex items-center gap-2">
+          <nav key={`site-${idx}`} className="hidden md:flex items-center gap-2">
             {menuItems
               .filter((m) => m.enabled !== false)
               .map((m) => (
@@ -168,7 +168,7 @@ export default function HeaderBar() {
       case 'search':
         if (!cfg.showSearch) return null
         return (
-          <div key="search" className="relative">
+          <div key={`search-${idx}`} className="relative">
             <input
               value={query}
               onChange={(e) => {
@@ -235,7 +235,7 @@ export default function HeaderBar() {
       case 'settings':
         return (
           <button
-            key="settings"
+            key={`settings-${idx}`}
             className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
             onClick={() => setRoute('/settings')}
             aria-label="Settings"
@@ -247,7 +247,7 @@ export default function HeaderBar() {
       case 'home':
         return (
           <button
-            key="home"
+            key={`home-${idx}`}
             className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
             onClick={() => setRoute('/dashboard')}
             aria-label="Home"
@@ -259,7 +259,7 @@ export default function HeaderBar() {
       case 'auth':
         return signedIn ? (
           <button
-            key="auth-logout"
+            key={`auth-logout-${idx}`}
             className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
             onClick={() => {
               if (confirm('Log out?')) {
@@ -275,7 +275,7 @@ export default function HeaderBar() {
           </button>
         ) : (
           <button
-            key="auth-login"
+            key={`auth-login-${idx}`}
             className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
             onClick={() => setRoute('/login')}
             aria-label="Sign in"
@@ -284,6 +284,8 @@ export default function HeaderBar() {
             {resolveIcon('FiLogIn', 16)}
           </button>
         )
+      case 'spacer':
+        return <span key={`spacer-${idx}`} className="w-4 flex-shrink-0" />
       default:
         return null
     }
@@ -319,25 +321,39 @@ export default function HeaderBar() {
             boxShadow: open ? `0 6px 18px rgba(0,0,0,${(cfg as unknown as { shadowOpacity?: number }).shadowOpacity ?? 0.08})` : 'none',
             transition: 'height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out, transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out',
             width: containerWidth,
+            overflow: 'hidden',
+            pointerEvents: open ? 'auto' : 'none',
           }}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
-        <div className="flex h-full w-full items-center justify-between px-3" style={{ opacity: open ? 1 : ((cfg as unknown as { collapsedOpacity?: number }).collapsedOpacity ?? 0.95), transition: 'opacity 160ms ease' }}>
+        <div
+          className="flex h-full w-full items-center justify-between px-3"
+          style={{
+            opacity: open ? 1 : ((cfg as unknown as { collapsedOpacity?: number }).collapsedOpacity ?? 0),
+            transition: 'opacity 160ms ease',
+            visibility: open ? 'visible' : 'hidden',
+          }}
+        >
           <div className="flex items-center gap-2">
             {(() => {
-              const leftKeys = (sectionOrder || ['logo','apps','site','search','auth']).filter((k) => !(k === 'search' || k === 'auth' || k === 'settings'))
+              const ordered = (sectionOrder || ['logo','apps','site','search','auth']).map((key, idx) => ({ key, idx }))
+              const left: Array<{ key: string; idx: number }> = []
+              const right: Array<{ key: string; idx: number }> = []
+              let side: 'left' | 'right' = 'left'
+              ordered.forEach((item) => {
+                if (['search', 'auth', 'settings'].includes(item.key)) side = 'right'
+                if (side === 'right') right.push(item)
+                else left.push(item)
+              })
               const nodes: React.ReactNode[] = []
-              let prevGroup: string | null = null
-              const addSep = (key: string) => {
+              let prevGroup: 'apps' | 'site' | null = null
+              left.forEach(({ key, idx }) => {
                 if ((key === 'apps' || key === 'site') && prevGroup && prevGroup !== key) {
-                  nodes.push(<span key={`sep-${key}`} className="mx-1 h-4 w-px bg-slate-200/80" />)
+                  nodes.push(<span key={`sep-left-${idx}`} className="mx-1 h-4 w-px bg-slate-200/80" />)
                 }
-                if (key === 'apps' || key === 'site') prevGroup = key
-              }
-              leftKeys.forEach((key) => {
-                addSep(key)
-                const node = renderSection(key)
+                if (key === 'apps' || key === 'site') prevGroup = key as 'apps' | 'site'
+                const node = renderSection(key, idx)
                 if (node) nodes.push(node)
               })
               return nodes
@@ -345,8 +361,14 @@ export default function HeaderBar() {
           </div>
           <div className="flex items-center gap-2">
             {(() => {
-              const rightKeys = (sectionOrder || ['logo','apps','site','search','auth']).filter((k) => (k === 'search' || k === 'auth' || k === 'settings'))
-              return rightKeys.map((key) => renderSection(key))
+              const ordered = (sectionOrder || ['logo','apps','site','search','auth']).map((key, idx) => ({ key, idx }))
+              const right: Array<{ key: string; idx: number }> = []
+              let side: 'left' | 'right' = 'left'
+              ordered.forEach((item) => {
+                if (['search', 'auth', 'settings'].includes(item.key)) side = 'right'
+                if (side === 'right') right.push(item)
+              })
+              return right.map(({ key, idx }) => renderSection(key, idx))
             })()}
           </div>
         </div>
