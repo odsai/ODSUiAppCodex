@@ -16,7 +16,7 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && 'production' || 'preview' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Use dev SWA configuration
         if: github.ref != 'refs/heads/main'
