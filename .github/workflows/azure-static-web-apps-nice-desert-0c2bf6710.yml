@@ -18,7 +18,7 @@ jobs:
       VITE_APPINSIGHTS_CONNECTION_STRING: ${{ secrets.VITE_APPINSIGHTS_CONNECTION_STRING }}
     environment: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && 'production' || 'preview' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           submodules: true
           lfs: false

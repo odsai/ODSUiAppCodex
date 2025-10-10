@@ -31,7 +31,7 @@ jobs:
       ACR_NAME: ${{ github.event.inputs.acrName }}
       IMAGE_TAG: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
