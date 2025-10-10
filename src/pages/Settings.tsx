@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useAppStore, type AppConfig, type AppSettings, type ColorPalette } from '../store/appStore'
+import { useAppStore, type AppConfig, type AppSettings, type ColorPalette, type HeaderSettings } from '../store/appStore'
 import { toast } from '../store/toastStore'
 import { ping } from '../utils/health'
 import { ICON_OPTIONS, resolveIcon } from '../utils/iconCatalog'
@@ -31,11 +31,12 @@ type OwuiHealthResponse = {
   message?: string
 }
 
-type TabId = 'apps' | 'branding' | 'lms' | 'auth'
+type TabId = 'apps' | 'branding' | 'header' | 'lms' | 'auth'
 
 const Tabs: { id: TabId; label: string }[] = [
   { id: 'apps', label: 'Apps' },
   { id: 'branding', label: 'Branding & Theme' },
+  { id: 'header', label: 'Header Bar' },
   { id: 'lms', label: 'LMS' },
   { id: 'auth', label: 'Single Sign-On' },
 ]
@@ -552,6 +553,67 @@ const BrandingTab = ({
         </div>
       </div>
     </div>
+  )
+}
+
+const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (next: HeaderSettings) => void }) => {
+  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="flex items-center justify-between gap-3">
+      <div className="text-sm text-slate-700">{label}</div>
+      <div>{children}</div>
+    </div>
+  )
+
+  return (
+    <section className="space-y-4 rounded-xl border bg-white p-4 shadow-sm">
+      <h3 className="text-base font-semibold">Header Bar</h3>
+      <Row label="Enable header bar">
+        <input type="checkbox" checked={header.enabled} onChange={(e) => onChange({ ...header, enabled: e.target.checked })} />
+      </Row>
+      <Row label="Pinned">
+        <input type="checkbox" checked={header.pinned} onChange={(e) => onChange({ ...header, pinned: e.target.checked })} />
+      </Row>
+      <Row label="Auto-hide when not hovered">
+        <input type="checkbox" checked={header.autoHide} onChange={(e) => onChange({ ...header, autoHide: e.target.checked })} />
+      </Row>
+      <Row label="Show logo">
+        <input type="checkbox" checked={header.showLogo} onChange={(e) => onChange({ ...header, showLogo: e.target.checked })} />
+      </Row>
+      <Row label="Show search">
+        <input type="checkbox" checked={header.showSearch} onChange={(e) => onChange({ ...header, showSearch: e.target.checked })} />
+      </Row>
+      <Row label="Build menu from Apps">
+        <input type="checkbox" checked={header.menuFromApps} onChange={(e) => onChange({ ...header, menuFromApps: e.target.checked })} />
+      </Row>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium">Height (px)</label>
+          <input
+            type="number"
+            min={40}
+            max={96}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.height}
+            onChange={(e) => onChange({ ...header, height: Number.parseInt(e.target.value, 10) || 56 })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Corner rounding</label>
+          <select
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.rounded}
+            onChange={(e) => onChange({ ...header, rounded: e.target.value as HeaderSettings['rounded'] })}
+          >
+            <option value="none">None</option>
+            <option value="sm">Small</option>
+            <option value="md">Medium</option>
+            <option value="lg">Large</option>
+            <option value="xl">XL</option>
+          </select>
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">The header bar mirrors the floating pill menu but sits at the top. Use it for quick access and search.</p>
+    </section>
   )
 }
 
@@ -1109,6 +1171,22 @@ export default function Settings() {
         <BrandingTab
           appearance={draft.appearance}
           onChange={(appearance) => setDraft((prev) => ({ ...prev, appearance }))}
+        />
+      )}
+
+      {activeTab === 'header' && (
+        <HeaderTab
+          header={draft.header || {
+            enabled: true,
+            pinned: true,
+            autoHide: false,
+            height: 56,
+            rounded: 'xl',
+            showLogo: true,
+            showSearch: true,
+            menuFromApps: true,
+          }}
+          onChange={(headerCfg) => setDraft((prev) => ({ ...prev, header: headerCfg }))}
         />
       )}
 
