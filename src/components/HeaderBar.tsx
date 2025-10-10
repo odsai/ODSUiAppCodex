@@ -68,8 +68,9 @@ export default function HeaderBar() {
   const iconSize = cfg.compact ? 28 : 34
   const minW = (cfg as unknown as { minWidth?: number }).minWidth ?? 420
   const maxW = (cfg as unknown as { maxWidth?: number }).maxWidth ?? 960
-  const dynamicWidth = minW + (appIconCount + siteIconCount) * iconSize + searchWidth
-  const containerWidth = Math.max(minW, Math.min(maxW, dynamicWidth))
+  const basePad = 180
+  const contentWidth = (appIconCount + siteIconCount) * iconSize + searchWidth + basePad
+  const containerWidth = Math.min(maxW, (minW && minW > 0) ? Math.max(minW, contentWidth) : contentWidth)
   const roundedClass =
     cfg.rounded === 'none'
       ? 'rounded-none'
@@ -116,7 +117,7 @@ export default function HeaderBar() {
             title="Dashboard"
           >
             {cfg.showLogo && appearance.logoDataUrl ? (
-              <img src={appearance.logoDataUrl} alt="" className="h-6 w-6 object-contain" />
+              <img src={appearance.logoDataUrl} alt="" className="h-6 w-auto max-w-[140px] object-contain" />
             ) : (
               <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
             )}
@@ -322,23 +323,32 @@ export default function HeaderBar() {
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
-        <div className="flex h-full items-center gap-2 px-3" style={{ opacity: open ? 1 : ((cfg as unknown as { collapsedOpacity?: number }).collapsedOpacity ?? 0.95), transition: 'opacity 160ms ease' }}>
-          {(() => {
-            const nodes: React.ReactNode[] = []
-            let prevGroup: string | null = null
-            const addSep = (key: string) => {
-              if ((key === 'apps' || key === 'site') && prevGroup && prevGroup !== key) {
-                nodes.push(<span key={`sep-${key}`} className="mx-1 h-4 w-px bg-slate-200/80" />)
+        <div className="flex h-full w-full items-center justify-between px-3" style={{ opacity: open ? 1 : ((cfg as unknown as { collapsedOpacity?: number }).collapsedOpacity ?? 0.95), transition: 'opacity 160ms ease' }}>
+          <div className="flex items-center gap-2">
+            {(() => {
+              const leftKeys = (sectionOrder || ['logo','apps','site','search','auth']).filter((k) => !(k === 'search' || k === 'auth' || k === 'settings'))
+              const nodes: React.ReactNode[] = []
+              let prevGroup: string | null = null
+              const addSep = (key: string) => {
+                if ((key === 'apps' || key === 'site') && prevGroup && prevGroup !== key) {
+                  nodes.push(<span key={`sep-${key}`} className="mx-1 h-4 w-px bg-slate-200/80" />)
+                }
+                if (key === 'apps' || key === 'site') prevGroup = key
               }
-              if (key === 'apps' || key === 'site') prevGroup = key
-            }
-            ;(sectionOrder || ['logo','apps','site','search','auth']).forEach((key) => {
-              addSep(key)
-              const node = renderSection(key)
-              if (node) nodes.push(node)
-            })
-            return nodes
-          })()}
+              leftKeys.forEach((key) => {
+                addSep(key)
+                const node = renderSection(key)
+                if (node) nodes.push(node)
+              })
+              return nodes
+            })()}
+          </div>
+          <div className="flex items-center gap-2">
+            {(() => {
+              const rightKeys = (sectionOrder || ['logo','apps','site','search','auth']).filter((k) => (k === 'search' || k === 'auth' || k === 'settings'))
+              return rightKeys.map((key) => renderSection(key))
+            })()}
+          </div>
         </div>
       </header>
       )}

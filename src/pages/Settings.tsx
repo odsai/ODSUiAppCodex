@@ -567,16 +567,7 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
   return (
     <section className="space-y-4 rounded-xl border bg-white p-4 shadow-sm">
       <h3 className="text-base font-semibold">Header Bar</h3>
-      <Row label="Position">
-        <select
-          className="rounded border px-3 py-2 text-sm"
-          value={header.position}
-          onChange={(e) => onChange({ ...header, position: e.target.value as HeaderSettings['position'] })}
-        >
-          <option value="static">Persistent (top of page)</option>
-          <option value="fixed">Overlay (fixed)</option>
-        </select>
-      </Row>
+      {/* Overlay-only mode; position selector removed */}
       <Row label="Compact icons and spacing">
         <input type="checkbox" checked={header.compact} onChange={(e) => onChange({ ...header, compact: e.target.checked })} />
       </Row>
