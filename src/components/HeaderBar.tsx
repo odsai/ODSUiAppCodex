@@ -13,14 +13,14 @@ export default function HeaderBar() {
   const appearance = useAppStore((s) => s.appSettings.appearance)
   const apps = useAppStore((s) => s.appSettings.apps)
   const setRoute = useAppStore((s) => s.setRoute)
-  const updateSettings = useAppStore((s) => s.updateSettings)
+  // const updateSettings = useAppStore((s) => s.updateSettings)
   const currentRoute = useAppStore((s) => s.route)
   const signedIn = useAppStore((s) => s.signedIn)
   const logout = useAppStore((s) => s.logout)
   const lmsEnabled = useAppStore((s) => s.appSettings.lms.enabled)
 
   const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const [focusedIdx, setFocusedIdx] = useState<number>(-1)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -42,9 +42,10 @@ export default function HeaderBar() {
   }
 
   const enabled = !!cfg.enabled
-  const isFixed = cfg.position === 'fixed'
+  // overlay-only, thin rail expands on hover
+  const railHeight = 10
 
-  const heightClass = cfg.height >= 64 ? 'h-16' : cfg.height >= 56 ? 'h-14' : 'h-12'
+  const expandedHeight = Math.max(40, cfg.height || 56)
   const roundedClass =
     cfg.rounded === 'none'
       ? 'rounded-none'
@@ -83,11 +84,11 @@ export default function HeaderBar() {
     <div
       ref={containerRef}
       className={classNames(
-        isFixed ? 'fixed left-0 right-0 top-0 z-30' : 'relative z-10',
+        'fixed left-0 right-0 top-0 z-30',
         'flex items-center justify-center px-2',
       )}
     >
-      {isFixed && cfg.edgeReveal && (currentRoute === '/app' || cfg.autoHide || cfg.hideOnApps) && (
+      {cfg.edgeReveal && (currentRoute === '/app' || cfg.autoHide || cfg.hideOnApps) && (
         <div
           className="fixed left-0 right-0 top-0 z-20 h-2 opacity-0"
           onMouseEnter={() => setOpen(true)}
@@ -97,34 +98,28 @@ export default function HeaderBar() {
       {!enabled ? null : (
         <header
           className={classNames(
-            classNames(
-              isFixed ? 'mt-2' : 'mt-0',
             'w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
-          ),
-          heightClass,
-          roundedClass,
-          isFixed
-            ? open
-              ? 'opacity-100 translate-y-0'
-              : 'opacity-60 -translate-y-8 hover:translate-y-0 hover:opacity-100'
-            : 'opacity-100 translate-y-0',
-        )}
-          onMouseEnter={() => isFixed && (cfg.autoHide || cfg.hideOnApps) && setOpen(true)}
-          onMouseLeave={() => isFixed && (cfg.autoHide || cfg.hideOnApps) && !cfg.pinned && setOpen(false)}
-          >
+            open ? '' : 'pointer-events-none',
+            roundedClass,
+            open ? 'opacity-100 translate-y-0' : 'opacity-80 -translate-y-2',
+          )}
+          style={{ height: open ? expandedHeight : railHeight }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+        >
         <div className="flex h-full items-center justify-between gap-3 px-3">
           {/* Left: Logo / Title */}
           <button
             className="flex items-center gap-2 text-sm font-semibold text-slate-800"
             onClick={() => setRoute('/dashboard')}
             aria-label="Go to dashboard"
+            title="Dashboard"
           >
             {cfg.showLogo && appearance.logoDataUrl ? (
               <img src={appearance.logoDataUrl} alt="" className="h-6 w-6 object-contain" />
             ) : (
               <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
             )}
-            <span className="hidden sm:inline">{appearance.title || 'ODSAi Studio'}</span>
           </button>
 
           {/* Middle: Menu from Apps */}
@@ -139,13 +134,13 @@ export default function HeaderBar() {
                     className="flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-slate-50"
                     onClick={() => onPick({ type: 'app', id: a.id })}
                     aria-label={`Open ${a.label}`}
+                    title={a.label}
                   >
                     {a.iconImage ? (
                       <img src={a.iconImage} alt="" className="h-4 w-4 object-contain" />
                     ) : (
-                      <span className="text-slate-700">{resolveIcon(a.icon, 14)}</span>
+                      <span className="text-slate-700">{resolveIcon(a.icon, 16)}</span>
                     )}
-                    <span className="hidden lg:inline">{a.label}</span>
                   </button>
                 ))}
             </nav>
@@ -226,25 +221,21 @@ export default function HeaderBar() {
                     setRoute('/dashboard')
                   }
                 }}
+                aria-label="Logout"
+                title="Logout"
               >
-                Logout
+                {resolveIcon('FiLogOut', 16)}
               </button>
             ) : (
               <button
                 className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
                 onClick={() => setRoute('/login')}
+                aria-label="Sign in"
+                title="Sign in"
               >
-                Sign in
+                {resolveIcon('FiLogIn', 16)}
               </button>
             )}
-
-            <button
-              aria-label={cfg.pinned ? 'Unpin header' : 'Pin header'}
-              className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
-              onClick={() => updateSettings({ header: { ...cfg, pinned: !cfg.pinned } })}
-            >
-              {cfg.pinned ? 'Unpin' : 'Pin'}
-            </button>
           </div>
         </div>
       </header>
