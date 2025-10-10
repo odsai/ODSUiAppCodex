@@ -39,6 +39,6 @@
     "ts-node-dev": "^2.0.0",
     "js-yaml": "^4.1.0",
     "typescript": "^5.4.5",
-    "vitest": "^1.5.1"
+    "vitest": "^3.2.4"
   }
 }
