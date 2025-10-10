@@ -622,6 +622,70 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           />
         </div>
         <div>
+          <label className="block text-sm font-medium">Min width (px)</label>
+          <input
+            type="number"
+            min={320}
+            max={1600}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.minWidth}
+            onChange={(e) => onChange({ ...header, minWidth: Math.max(320, Math.min(1600, Number.parseInt(e.target.value, 10) || 420)) })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Max width (px)</label>
+          <input
+            type="number"
+            min={600}
+            max={2000}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.maxWidth}
+            onChange={(e) => onChange({ ...header, maxWidth: Math.max(600, Math.min(2000, Number.parseInt(e.target.value, 10) || 960)) })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Rail color</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="color"
+              className="h-10 w-10 cursor-pointer rounded border"
+              value={header.railColor || '#FF6F00'}
+              onChange={(e) => onChange({ ...header, railColor: e.target.value })}
+            />
+            <input
+              className="flex-1 rounded border px-3 py-2"
+              value={header.railColor}
+              onChange={(e) => onChange({ ...header, railColor: e.target.value })}
+              placeholder="var(--brand-color) or hex"
+            />
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Leave blank to use brand color.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Shadow opacity (0–0.3)</label>
+          <input
+            type="number"
+            step={0.01}
+            min={0}
+            max={0.3}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.shadowOpacity}
+            onChange={(e) => onChange({ ...header, shadowOpacity: Math.max(0, Math.min(0.3, Number(e.target.value))) })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Collapsed opacity (0.5–1)</label>
+          <input
+            type="number"
+            step={0.01}
+            min={0.5}
+            max={1}
+            className="mt-1 w-full rounded border px-3 py-2"
+            value={header.collapsedOpacity}
+            onChange={(e) => onChange({ ...header, collapsedOpacity: Math.max(0.5, Math.min(1, Number(e.target.value))) })}
+          />
+        </div>
+        <div>
           <label className="block text-sm font-medium">Corner rounding</label>
           <select
             className="mt-1 w-full rounded border px-3 py-2"
@@ -722,6 +786,75 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
         </div>
       </div>
       <p className="text-xs text-slate-500">The header bar mirrors the floating pill menu but sits at the top. Use it for quick access and search.</p>
+
+      <div className="mt-4">
+        <h4 className="mb-2 text-sm font-semibold">Layout order</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          {header.sectionOrder.map((k, idx) => (
+            <div key={`${k}-${idx}`} className="flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-xs">
+              <span className="font-medium">{k}</span>
+              <button
+                className="rounded border px-1"
+                onClick={() => {
+                  if (idx === 0) return
+                  const next = [...header.sectionOrder]
+                  const [m] = next.splice(idx, 1)
+                  next.splice(idx - 1, 0, m)
+                  onChange({ ...header, sectionOrder: next })
+                }}
+                aria-label="Move up"
+                title="Move up"
+              >▲</button>
+              <button
+                className="rounded border px-1"
+                onClick={() => {
+                  if (idx === header.sectionOrder.length - 1) return
+                  const next = [...header.sectionOrder]
+                  const [m] = next.splice(idx, 1)
+                  next.splice(idx + 1, 0, m)
+                  onChange({ ...header, sectionOrder: next })
+                }}
+                aria-label="Move down"
+                title="Move down"
+              >▼</button>
+              <button
+                className="rounded border px-1"
+                onClick={() => {
+                  const next = header.sectionOrder.filter((x, i) => i !== idx)
+                  onChange({ ...header, sectionOrder: next })
+                }}
+                aria-label="Remove"
+                title="Remove"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <select
+            className="rounded border px-2 py-1 text-sm"
+            value=""
+            onChange={(e) => {
+              const key = e.target.value as 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home'
+              if (!key) return
+              if (header.sectionOrder.includes(key)) return
+              onChange({ ...header, sectionOrder: [...header.sectionOrder, key] })
+            }}
+          >
+            <option value="">+ Add section…</option>
+            {(['logo', 'apps', 'site', 'search', 'auth', 'settings', 'home'] as const)
+              .filter((k) => !header.sectionOrder.includes(k))
+              .map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+          </select>
+          <button
+            className="rounded border px-2 py-1 text-sm"
+            onClick={() => onChange({ ...header, sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'] })}
+          >
+            Reset order
+          </button>
+        </div>
+      </div>
     </section>
   )
 }

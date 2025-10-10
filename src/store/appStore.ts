@@ -107,6 +107,11 @@ export type HeaderSettings = {
   railHeight: number // collapsed rail height in px
   menuItems: HeaderMenuItem[]
   sectionOrder: HeaderSectionKey[]
+  minWidth: number
+  maxWidth: number
+  railColor: string
+  shadowOpacity: number
+  collapsedOpacity: number
 }
 
 export type HeaderSectionKey = 'logo' | 'apps' | 'site' | 'search' | 'auth' | 'settings' | 'home'
@@ -298,6 +303,11 @@ const createDefaultAppSettings = (): AppSettings => {
       railHeight: 10,
       menuItems: [],
       sectionOrder: ['logo', 'apps', 'site', 'search', 'auth'],
+      minWidth: 420,
+      maxWidth: 960,
+      railColor: '',
+      shadowOpacity: 0.08,
+      collapsedOpacity: 0.95,
     },
     updatedAt: new Date().toISOString(),
   }
@@ -528,6 +538,26 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         const unique = filtered.filter((x) => (seen.has(x) ? false : (seen.add(x), true)))
         return unique.length ? unique : (defaults.header?.sectionOrder ?? ['logo', 'apps', 'site', 'search', 'auth'])
       })(),
+      minWidth:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).minWidth === 'number'
+          ? Math.max(320, Math.min(1600, (record.header as Record<string, unknown>).minWidth as number))
+          : defaults.header?.minWidth ?? 420,
+      maxWidth:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).maxWidth === 'number'
+          ? Math.max(600, Math.min(2000, (record.header as Record<string, unknown>).maxWidth as number))
+          : defaults.header?.maxWidth ?? 960,
+      railColor:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).railColor === 'string'
+          ? ((record.header as Record<string, unknown>).railColor as string)
+          : defaults.header?.railColor ?? '',
+      shadowOpacity:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).shadowOpacity === 'number'
+          ? Math.max(0, Math.min(0.3, (record.header as Record<string, unknown>).shadowOpacity as number))
+          : defaults.header?.shadowOpacity ?? 0.08,
+      collapsedOpacity:
+        isRecord(record.header) && typeof (record.header as Record<string, unknown>).collapsedOpacity === 'number'
+          ? Math.max(0.5, Math.min(1, (record.header as Record<string, unknown>).collapsedOpacity as number))
+          : defaults.header?.collapsedOpacity ?? 0.95,
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,

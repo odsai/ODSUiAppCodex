@@ -66,9 +66,10 @@ export default function HeaderBar() {
   const appIconCount = apps.filter((a) => a.enabled).slice(0, 6).length
   const siteIconCount = (menuItems || []).filter((m) => m.enabled !== false).length
   const iconSize = cfg.compact ? 28 : 34
-  const baseWidth = 420
-  const dynamicWidth = baseWidth + (appIconCount + siteIconCount) * iconSize + searchWidth
-  const containerWidth = Math.max(420, Math.min(960, dynamicWidth))
+  const minW = (cfg as unknown as { minWidth?: number }).minWidth ?? 420
+  const maxW = (cfg as unknown as { maxWidth?: number }).maxWidth ?? 960
+  const dynamicWidth = minW + (appIconCount + siteIconCount) * iconSize + searchWidth
+  const containerWidth = Math.max(minW, Math.min(maxW, dynamicWidth))
   const roundedClass =
     cfg.rounded === 'none'
       ? 'rounded-none'
@@ -312,16 +313,16 @@ export default function HeaderBar() {
           )}
           style={{
             height: open ? expandedHeight : railHeight,
-            background: open ? undefined : 'var(--brand-color)',
+            background: open ? undefined : ((cfg as unknown as { railColor?: string }).railColor || 'var(--brand-color)'),
             borderColor: open ? undefined : 'transparent',
-            boxShadow: open ? '0 6px 18px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: open ? `0 6px 18px rgba(0,0,0,${(cfg as unknown as { shadowOpacity?: number }).shadowOpacity ?? 0.08})` : 'none',
             transition: 'height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease-out, transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out',
             width: containerWidth,
           }}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
-        <div className="flex h-full items-center gap-2 px-3" style={{ opacity: open ? 1 : 0, transition: 'opacity 160ms ease' }}>
+        <div className="flex h-full items-center gap-2 px-3" style={{ opacity: open ? 1 : ((cfg as unknown as { collapsedOpacity?: number }).collapsedOpacity ?? 0.95), transition: 'opacity 160ms ease' }}>
           {(() => {
             const nodes: React.ReactNode[] = []
             let prevGroup: string | null = null
