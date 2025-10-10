@@ -27,17 +27,29 @@ export default function HeaderBar() {
     setOpen(settings.pinned)
   }, [settings])
 
-  const enabled = !!settings?.enabled
+  // Fallback config to avoid undefined access during initial hydration
+  const cfg = settings || {
+    enabled: false,
+    pinned: true,
+    autoHide: false,
+    height: 56,
+    rounded: 'xl' as const,
+    showLogo: true,
+    showSearch: true,
+    menuFromApps: true,
+  }
 
-  const heightClass = settings.height >= 64 ? 'h-16' : settings.height >= 56 ? 'h-14' : 'h-12'
+  const enabled = !!cfg.enabled
+
+  const heightClass = cfg.height >= 64 ? 'h-16' : cfg.height >= 56 ? 'h-14' : 'h-12'
   const roundedClass =
-    settings.rounded === 'none'
+    cfg.rounded === 'none'
       ? 'rounded-none'
-      : settings.rounded === 'sm'
+      : cfg.rounded === 'sm'
       ? 'rounded'
-      : settings.rounded === 'md'
+      : cfg.rounded === 'md'
       ? 'rounded-md'
-      : settings.rounded === 'lg'
+      : cfg.rounded === 'lg'
       ? 'rounded-lg'
       : 'rounded-xl'
 
@@ -67,16 +79,16 @@ export default function HeaderBar() {
   return (
     <div ref={containerRef} className="fixed left-0 right-0 top-0 z-30 flex items-center justify-center px-2">
       {!enabled ? null : (
-      <header
-        className={classNames(
-          'mt-2 w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
-          heightClass,
-          roundedClass,
-          open ? 'opacity-100 translate-y-0' : 'opacity-60 -translate-y-8 hover:translate-y-0 hover:opacity-100',
-        )}
-        onMouseEnter={() => settings.autoHide && setOpen(true)}
-        onMouseLeave={() => settings.autoHide && !settings.pinned && setOpen(false)}
-      >
+        <header
+          className={classNames(
+            'mt-2 w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
+            heightClass,
+            roundedClass,
+            open ? 'opacity-100 translate-y-0' : 'opacity-60 -translate-y-8 hover:translate-y-0 hover:opacity-100',
+          )}
+          onMouseEnter={() => cfg.autoHide && setOpen(true)}
+          onMouseLeave={() => cfg.autoHide && !cfg.pinned && setOpen(false)}
+        >
         <div className="flex h-full items-center justify-between gap-3 px-3">
           {/* Left: Logo / Title */}
           <button
@@ -84,7 +96,7 @@ export default function HeaderBar() {
             onClick={() => setRoute('/dashboard')}
             aria-label="Go to dashboard"
           >
-            {settings.showLogo && appearance.logoDataUrl ? (
+            {cfg.showLogo && appearance.logoDataUrl ? (
               <img src={appearance.logoDataUrl} alt="" className="h-6 w-6 object-contain" />
             ) : (
               <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: 'var(--brand-color)' }} />
@@ -93,7 +105,7 @@ export default function HeaderBar() {
           </button>
 
           {/* Middle: Menu from Apps */}
-          {settings.menuFromApps && (
+          {cfg.menuFromApps && (
             <nav className="hidden md:flex items-center gap-2">
               {apps
                 .filter((a) => a.enabled)
@@ -118,7 +130,7 @@ export default function HeaderBar() {
 
           {/* Right: Search + Auth + Pin */}
           <div className="flex items-center gap-2">
-            {settings.showSearch && (
+            {cfg.showSearch && (
               <div className="relative">
                 <input
                   value={query}
@@ -177,11 +189,11 @@ export default function HeaderBar() {
             )}
 
             <button
-              aria-label={settings.pinned ? 'Unpin header' : 'Pin header'}
+              aria-label={cfg.pinned ? 'Unpin header' : 'Pin header'}
               className="rounded border px-2 py-1 text-sm hover:bg-slate-50"
-              onClick={() => updateSettings({ header: { ...settings, pinned: !settings.pinned } })}
+              onClick={() => updateSettings({ header: { ...cfg, pinned: !cfg.pinned } })}
             >
-              {settings.pinned ? 'Unpin' : 'Pin'}
+              {cfg.pinned ? 'Unpin' : 'Pin'}
             </button>
           </div>
         </div>
