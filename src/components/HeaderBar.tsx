@@ -40,6 +40,7 @@ export default function HeaderBar() {
   }
 
   const enabled = !!cfg.enabled
+  const isFixed = cfg.position === 'fixed'
 
   const heightClass = cfg.height >= 64 ? 'h-16' : cfg.height >= 56 ? 'h-14' : 'h-12'
   const roundedClass =
@@ -77,18 +78,31 @@ export default function HeaderBar() {
   }, [apps, lmsEnabled, query, onPick])
 
   return (
-    <div ref={containerRef} className="fixed left-0 right-0 top-0 z-30 flex items-center justify-center px-2">
+    <div
+      ref={containerRef}
+      className={classNames(
+        isFixed ? 'fixed left-0 right-0 top-0 z-30' : 'relative z-10',
+        'flex items-center justify-center px-2',
+      )}
+    >
       {!enabled ? null : (
         <header
           className={classNames(
-            'mt-2 w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
-            heightClass,
-            roundedClass,
-            open ? 'opacity-100 translate-y-0' : 'opacity-60 -translate-y-8 hover:translate-y-0 hover:opacity-100',
-          )}
-          onMouseEnter={() => cfg.autoHide && setOpen(true)}
-          onMouseLeave={() => cfg.autoHide && !cfg.pinned && setOpen(false)}
-        >
+          classNames(
+            isFixed ? 'mt-2' : 'mt-0',
+            'w-full max-w-6xl border bg-white/85 backdrop-blur transition-all shadow-sm',
+          ),
+          heightClass,
+          roundedClass,
+          isFixed
+            ? open
+              ? 'opacity-100 translate-y-0'
+              : 'opacity-60 -translate-y-8 hover:translate-y-0 hover:opacity-100'
+            : 'opacity-100 translate-y-0',
+        )}
+        onMouseEnter={() => isFixed && cfg.autoHide && setOpen(true)}
+        onMouseLeave={() => isFixed && cfg.autoHide && !cfg.pinned && setOpen(false)}
+      >
         <div className="flex h-full items-center justify-between gap-3 px-3">
           {/* Left: Logo / Title */}
           <button

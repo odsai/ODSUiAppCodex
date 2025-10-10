@@ -102,6 +102,7 @@ export type HeaderSettings = {
   showLogo: boolean
   showSearch: boolean
   menuFromApps: boolean
+  position: 'fixed' | 'static'
 }
 
 const BASE_APPS: AppConfig[] = []
@@ -277,6 +278,7 @@ const createDefaultAppSettings = (): AppSettings => {
       showLogo: true,
       showSearch: true,
       menuFromApps: true,
+      position: 'static',
     },
     updatedAt: new Date().toISOString(),
   }
@@ -465,6 +467,12 @@ const normalizeAppSettings = (incoming: unknown): AppSettings => {
         isRecord(record.header) && typeof (record.header as Record<string, unknown>).menuFromApps === 'boolean'
           ? Boolean((record.header as Record<string, unknown>).menuFromApps)
           : defaults.header?.menuFromApps ?? true,
+      position:
+        isRecord(record.header) &&
+        (((record.header as Record<string, unknown>).position === 'fixed') ||
+          ((record.header as Record<string, unknown>).position === 'static'))
+          ? ((record.header as Record<string, unknown>).position as 'fixed' | 'static')
+          : defaults.header?.position ?? 'static',
     },
     misc: record.misc ?? defaults.misc,
     updatedAt: typeof record.updatedAt === 'string' ? (record.updatedAt as string) : defaults.updatedAt,
