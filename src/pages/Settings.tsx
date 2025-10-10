@@ -41,8 +41,16 @@ const Tabs: { id: TabId; label: string }[] = [
   { id: 'auth', label: 'Single Sign-On' },
 ]
 
-const readFileAsDataUrl = async (file: File) =>
+const MAX_UPLOAD_SIZE = 256 * 1024 // 256 KB ceiling for inline assets
+
+const readFileAsDataUrl = async (file: File, options?: { label?: string; maxSize?: number }) =>
   new Promise<string>((resolve, reject) => {
+    const { label = 'file', maxSize = MAX_UPLOAD_SIZE } = options || {}
+    if (file.size > maxSize) {
+      toast.error(`${label} is too large. Please keep uploads under ${Math.round(maxSize / 1024)} KB.`)
+      reject(new Error('FILE_TOO_LARGE'))
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
     reader.onerror = () => reject(reader.error)
@@ -174,10 +182,14 @@ const AppsTab = ({
                     type="file"
                     accept="image/png, image/jpeg, image/svg+xml"
                     className="mt-1 w-full text-sm"
-                    onChange={async (e) => {
+                  onChange={async (e) => {
                       if (!e.target.files?.[0]) return
-                      const dataUrl = await readFileAsDataUrl(e.target.files[0])
-                      handleUpdate(app.id, (prev) => ({ ...prev, iconImage: dataUrl }))
+                      try {
+                        const dataUrl = await readFileAsDataUrl(e.target.files[0], { label: `${app.label} icon` })
+                        handleUpdate(app.id, (prev) => ({ ...prev, iconImage: dataUrl }))
+                      } catch {
+                        /* handled via toast */
+                      }
                     }}
                   />
                   {app.iconImage && (
@@ -369,8 +381,13 @@ const BrandingTab = ({
   }
 
   const handleFile = async (file: File, key: 'logoDataUrl' | 'iconDataUrl') => {
-    const dataUrl = await readFileAsDataUrl(file)
-    onChange({ ...appearance, [key]: dataUrl })
+    const label = key === 'logoDataUrl' ? 'Branding logo' : 'Branding icon'
+    try {
+      const dataUrl = await readFileAsDataUrl(file, { label })
+      onChange({ ...appearance, [key]: dataUrl })
+    } catch {
+      /* toast emitted by helper */
+    }
   }
 
   return (
@@ -576,14 +593,15 @@ const HeaderTab = ({ header, onChange }: { header: HeaderSettings; onChange: (ne
           type="file"
           accept="image/png, image/jpeg, image/svg+xml"
           className="text-sm"
-          onChange={(e) => {
+          onChange={async (e) => {
             const file = e.target.files?.[0]
             if (!file) return
-            const reader = new FileReader()
-            reader.onload = () => {
-              onChange({ ...header, logoDataUrl: typeof reader.result === 'string' ? reader.result : undefined })
+            try {
+              const dataUrl = await readFileAsDataUrl(file, { label: 'Header logo' })
+              onChange({ ...header, logoDataUrl: dataUrl })
+            } catch {
+              /* toast handled in helper */
             }
-            reader.readAsDataURL(file)
           }}
         />
         {header.logoDataUrl && (

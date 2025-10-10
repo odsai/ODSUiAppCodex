@@ -347,9 +347,13 @@ export default function HeaderBar() {
             overflow: 'hidden',
             pointerEvents: open ? 'auto' : 'none',
           }}
+          aria-describedby="header-rail-instructions"
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
         >
+        <span id="header-rail-instructions" className="sr-only">
+          Header rail expanded. Use Tab to move between icons. Collapse the rail with the button at the top of the page.
+        </span>
         <div
           className="flex h-full w-full items-center justify-between px-3"
           style={{

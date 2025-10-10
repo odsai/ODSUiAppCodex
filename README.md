@@ -113,4 +113,8 @@ Vite preview runs on port 4173 by default.
 - LMS API (later)
   - Deploy as a Container App; set CORS to SWA host; update Settings → LMS `apiBaseUrl`; add API host under CSP `connect-src`
 - Testing
+  - `npm run lint`, `npm run test`, `npm run build` (required for PRs)
   - Consider adding E2E (Playwright) and environment-specific alert thresholds
+- Observability
+  - Import the baseline App Insights workbook in `docs/ops/APP_INSIGHTS_WORKBOOK.md`
+  - Configure Trivy security scans (`.github/workflows/trivy.yml`) with your desired severity gates

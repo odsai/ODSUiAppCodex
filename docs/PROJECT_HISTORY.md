@@ -18,3 +18,4 @@
 - 2025-10-10: Hardened SWA deployment pipeline with environment-gated workflows and split prod/dev CSP configs.
 - 2025-10-10: Added App Insights telemetry hooks (SPA + LMS API) and established incident/data deletion runbooks with finalized privacy policy.
 - 2025-10-15: Introduced optional Redis cache and alerting Bicep modules plus alerting runbook to close remaining enterprise blockers.
+- 2025-10-16: Hardened overlay header for accessibility (keyboard toggle, screen-reader guidance), added header-specific logo uploads, multiple spacers, Trivy security scan workflow, and published baseline App Insights workbook. Added unit coverage for settings normalization.
